@@ -1,9 +1,9 @@
 package xray
 
 import (
-	"bytes"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/gorilla/websocket"
 	"github.com/lazywei/go-opencv/opencv"
@@ -33,20 +33,32 @@ type position struct {
 	Shift     int
 }
 
+func debugln(v ...interface{}) {
+	if os.Getenv("DEBUG") == "1" {
+		log.Println(v...)
+	}
+}
+
+func debugf(format string, v ...interface{}) {
+	if os.Getenv("DEBUG") == "1" {
+		log.Printf(format, v...)
+	}
+}
+
 func (v *videoRouter) detectObjects(data []byte) {
-	a := bytes.Index(data, []byte("\xff\xd8"))
-	b := bytes.Index(data, []byte("\xff\xd9"))
-	if a == -1 || b == -1 {
-		v.metadataCh <- "Waiting for MJPEG"
+	defer func() {
+		if r := recover(); r != nil {
+			debugln("Recovered in f", r)
+		}
+	}()
+	img := opencv.DecodeImageMem(data)
+	if img == nil {
+		debugln("Image is bad.")
+		v.metadataCh <- "Image is bad."
 		return
 	}
-	if a > b+2 {
-		v.metadataCh <- "Waiting for MJPEG"
-		return
-	}
-	log.Println("Found MJPEG", a, b, len(data))
-	jpg := data[a : b+2]
-	faces := haarCasde.DetectObjects(opencv.DecodeImageMem(jpg))
+	debugln("Incoming image", img.Channels(), img.Width(), img.Height(), img.ImageSize())
+	faces := haarCasde.DetectObjects(img)
 	if len(faces) > 0 {
 		var positions []position
 		for _, value := range faces {
@@ -65,6 +77,7 @@ func (v *videoRouter) detectObjects(data []byte) {
 				Shift:     0,
 			})
 		}
+		debugf("Found humans at positions %#v\n", positions)
 		v.metadataCh <- "Humans"
 	} else {
 		v.metadataCh <- "No humans found"
@@ -77,7 +90,7 @@ func (v *videoRouter) metadata(w http.ResponseWriter, r *http.Request) {
 		log.Println("Upgrade error", err)
 		return
 	}
-	log.Printf("Connected from %s\n", r.Header)
+	debugf("Connected from %s\n", r.Header)
 	defer c.Close()
 	for {
 		mt, data, err := c.ReadMessage()
@@ -85,7 +98,7 @@ func (v *videoRouter) metadata(w http.ResponseWriter, r *http.Request) {
 			log.Println("ReadMessage", err)
 			break
 		}
-		log.Printf("Received message of type %d, with length %d\n", mt, len(data))
+		debugf("Received message of type %d, with length %d\n", mt, len(data))
 		if mt != websocket.BinaryMessage {
 			log.Printf("Unrecognized incoming message type %d\n", websocket.TextMessage)
 			break
