@@ -1,6 +1,7 @@
 package xray
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 	"os"
@@ -22,7 +23,20 @@ func init() {
 }
 
 type videoRouter struct {
-	metadataCh chan string // Can be enhanced to something else.
+	metadataCh chan []byte // Can be enhanced to something else.
+}
+
+type faceType string
+
+const (
+	unknownFace faceType = "unknown"
+	humanFace   faceType = "human"
+	animalFace  faceType = "animal"
+)
+
+type faceObject struct {
+	Positions []position
+	FaceType  faceType
 }
 
 type position struct {
@@ -45,6 +59,16 @@ func debugf(format string, v ...interface{}) {
 	}
 }
 
+// Send the json data.
+func sendData(fo faceObject, metadataCh chan<- []byte) {
+	fobytes, err := json.Marshal(&fo)
+	if err != nil {
+		debugf("Marshalling json error", err)
+		return
+	}
+	metadataCh <- fobytes
+}
+
 func (v *videoRouter) detectObjects(data []byte) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -54,7 +78,7 @@ func (v *videoRouter) detectObjects(data []byte) {
 	img := opencv.DecodeImageMem(data)
 	if img == nil {
 		debugln("Image is bad.")
-		v.metadataCh <- "Image is bad."
+		v.metadataCh <- []byte("Image is bad.")
 		return
 	}
 	debugln("Incoming image", img.Channels(), img.Width(), img.Height(), img.ImageSize())
@@ -77,10 +101,18 @@ func (v *videoRouter) detectObjects(data []byte) {
 				Shift:     0,
 			})
 		}
-		debugf("Found humans at positions %#v\n", positions)
-		v.metadataCh <- "Humans"
+		debugf("Found humans")
+		fo := faceObject{
+			FaceType:  humanFace,
+			Positions: positions,
+		}
+		sendData(fo, v.metadataCh)
 	} else {
-		v.metadataCh <- "No humans found"
+		debugf("No humans found")
+		fo := faceObject{
+			FaceType: unknownFace,
+		}
+		sendData(fo, v.metadataCh)
 	}
 }
 
@@ -104,7 +136,7 @@ func (v *videoRouter) metadata(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		go v.detectObjects(data)
-		if err = c.WriteMessage(websocket.TextMessage, []byte(<-v.metadataCh)); err != nil {
+		if err = c.WriteMessage(websocket.TextMessage, <-v.metadataCh); err != nil {
 			log.Println("Error writing to client", err)
 		}
 	}
@@ -115,7 +147,7 @@ func Main() {
 	log.SetFlags(0)
 
 	v := &videoRouter{
-		metadataCh: make(chan string),
+		metadataCh: make(chan []byte),
 	}
 
 	http.HandleFunc("/", v.metadata)
