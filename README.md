@@ -1,17 +1,17 @@
-# X-ray
+# Xray
 
-Deep learning for video
+Deep learning based object detection for video.
 
 ## Install
 
 ```sh
-go get github.com/minio/xray
+go get -d github.com/minio/xray
+cd $GOPATH/github.com/minio/xray
+docker build . -t xray
 ```
 
 ## Run
 
 ```sh
-docker build . -t xray
 docker run --it --rm -p 8080:8080 xray
-Started listening on ws://0.0.0.0:8080
 ```
