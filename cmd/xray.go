@@ -1,156 +1,141 @@
-package xray
+/*
+ * Copyright (c) 2017 Minio, Inc. <https://www.minio.io>
+ *
+ * This file is part of Xray.
+ *
+ * Xray is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package cmd
 
 import (
-	"encoding/json"
-	"log"
+	"fmt"
+	"net"
 	"net/http"
-	"os"
 
-	"github.com/gorilla/websocket"
-	"github.com/lazywei/go-opencv/opencv"
+	router "github.com/gorilla/mux"
+	"github.com/minio/cli"
 )
 
-var haarCasde *opencv.HaarCascade
-var upgrader websocket.Upgrader
-
-func init() {
-	haarCasde = opencv.LoadHaarClassifierCascade("haarcascade_frontalface_alt.xml")
-	upgrader = websocket.Upgrader{
-		CheckOrigin: func(r *http.Request) bool {
-			return true
+var (
+	// global flags for minio.
+	globalFlags = []cli.Flag{
+		cli.StringFlag{
+			Name:  "address",
+			Value: ":8080",
+			Usage: `Bind to a specific IP:PORT.`,
 		},
-	} // use default options
-}
-
-type videoRouter struct {
-	metadataCh chan []byte // Can be enhanced to something else.
-}
-
-type faceType string
-
-const (
-	unknownFace faceType = "unknown"
-	humanFace   faceType = "human"
-	animalFace  faceType = "animal"
+		cli.StringFlag{
+			Name:  "cert",
+			Value: globalXrayCertFile,
+			Usage: "Path to SSL certificate file.",
+		},
+		cli.StringFlag{
+			Name:  "key",
+			Value: globalXrayKeyFile,
+			Usage: "Path to SSL key file.",
+		},
+	}
 )
 
-type faceObject struct {
-	Positions []position
-	FaceType  faceType
+// Help template for xray.
+var xrayHelpTemplate = `NAME:
+  {{.Name}} - {{.Usage}}
+
+DESCRIPTION:
+  {{.Description}}
+
+USAGE:
+  xray {{if .Flags}}[flags] {{end}}command{{if .Flags}}{{end}} [arguments...]
+
+COMMANDS:
+  {{range .Commands}}{{join .Names ", "}}{{ "\t" }}{{.Usage}}
+  {{end}}{{if .Flags}}
+FLAGS:
+  {{range .Flags}}{{.}}
+  {{end}}{{end}}`
+
+// init - check the environment before main starts
+func init() {
+	// Check if minio was compiled using a supported version of Golang.
+	checkGoVersion()
 }
 
-type position struct {
-	PT1, PT2  opencv.Point
-	Color     opencv.Scalar
-	Thickness int
-	LineType  int
-	Shift     int
-}
-
-func debugln(v ...interface{}) {
-	if os.Getenv("DEBUG") == "1" {
-		log.Println(v...)
-	}
-}
-
-func debugf(format string, v ...interface{}) {
-	if os.Getenv("DEBUG") == "1" {
-		log.Printf(format, v...)
-	}
-}
-
-// Send the json data.
-func sendData(fo faceObject, metadataCh chan<- []byte) {
-	fobytes, err := json.Marshal(&fo)
+// getListenIPs - gets all the ips to listen on.
+func getListenIPs(serverAddr string) (hosts []string, port string, err error) {
+	var host string
+	host, port, err = net.SplitHostPort(serverAddr)
 	if err != nil {
-		debugf("Marshalling json error", err)
-		return
+		return nil, port, fmt.Errorf("Unable to parse host address %s", err)
 	}
-	metadataCh <- fobytes
-}
-
-func (v *videoRouter) detectObjects(data []byte) {
-	defer func() {
-		if r := recover(); r != nil {
-			debugln("Recovered in f", r)
-		}
-	}()
-	img := opencv.DecodeImageMem(data)
-	if img == nil {
-		debugln("Image is bad.")
-		v.metadataCh <- []byte("Image is bad.")
-		return
-	}
-	debugln("Incoming image", img.Channels(), img.Width(), img.Height(), img.ImageSize())
-	faces := haarCasde.DetectObjects(img)
-	if len(faces) > 0 {
-		var positions []position
-		for _, value := range faces {
-			positions = append(positions, position{
-				PT1: opencv.Point{
-					X: value.X() + value.Width(),
-					Y: value.Y(),
-				},
-				PT2: opencv.Point{
-					X: value.X(),
-					Y: value.Y() + value.Height(),
-				},
-				Color:     opencv.ScalarAll(255.0),
-				Thickness: 1,
-				LineType:  1,
-				Shift:     0,
-			})
-		}
-		debugf("Found humans")
-		fo := faceObject{
-			FaceType:  humanFace,
-			Positions: positions,
-		}
-		sendData(fo, v.metadataCh)
-	} else {
-		debugf("No humans found")
-		fo := faceObject{
-			FaceType: unknownFace,
-		}
-		sendData(fo, v.metadataCh)
-	}
-}
-
-func (v *videoRouter) metadata(w http.ResponseWriter, r *http.Request) {
-	c, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Println("Upgrade error", err)
-		return
-	}
-	debugf("Connected from %s\n", r.Header)
-	defer c.Close()
-	for {
-		mt, data, err := c.ReadMessage()
+	if host == "" {
+		var ipv4s []net.IP
+		ipv4s, err = getInterfaceIPv4s()
 		if err != nil {
-			log.Println("ReadMessage", err)
-			break
+			return nil, port, fmt.Errorf("Unable reverse sort ips from hosts %s", err)
 		}
-		debugf("Received message of type %d, with length %d\n", mt, len(data))
-		if mt != websocket.BinaryMessage {
-			log.Printf("Unrecognized incoming message type %d\n", websocket.TextMessage)
-			break
+		for _, ip := range ipv4s {
+			hosts = append(hosts, ip.String())
 		}
-		go v.detectObjects(data)
-		if err = c.WriteMessage(websocket.TextMessage, <-v.metadataCh); err != nil {
-			log.Println("Error writing to client", err)
-		}
-	}
+		return hosts, port, nil
+	} // if host != "" {
+
+	// Proceed to append itself, since user requested a specific endpoint.
+	hosts = append(hosts, host)
+
+	// Success.
+	return hosts, port, nil
 }
 
-// Main - X-Ray server entry point.
-func Main() {
-	log.SetFlags(0)
+func registerApp() *cli.App {
+	// Set up app.
+	app := cli.NewApp()
+	app.Name = "xray"
+	app.Version = Version
+	app.Author = "Minio.io"
+	app.Usage = "Wish i had those eyes."
+	app.Description = `Deep learning based object detection for video.`
+	app.Flags = globalFlags
+	app.CustomAppHelpTemplate = xrayHelpTemplate
+	app.Action = func(ctx *cli.Context) error {
+		// Initialize a mux router.
+		mux := router.NewRouter().SkipClean(true)
+		httpServer := &http.Server{
+			Addr:           ctx.String("address"),
+			Handler:        configureXrayHandler(mux),
+			MaxHeaderBytes: 1 << 20,
+		}
 
-	v := &videoRouter{
-		metadataCh: make(chan []byte),
+		hosts, port, err := getListenIPs(httpServer.Addr)
+		fatalIf(err, "Unable to get listen ips.")
+		for _, host := range hosts {
+			rlog.Printf("Started listening on ws://%s:%s", host, port)
+		}
+
+		// Start server, automatically configures TLS if certs are available.
+		cert, key := ctx.String("cert"), ctx.String("key")
+		if isCertFileExists(cert) && isKeyFileExists(key) {
+			fatalIf(httpServer.ListenAndServeTLS(cert, key), "Failed to start xray server.")
+		} else {
+			fatalIf(httpServer.ListenAndServe(), "Failed to start xray server.")
+		}
+		return nil
 	}
+	return app
+}
 
-	http.HandleFunc("/", v.metadata)
-	log.Println("Started listening on ws://0.0.0.0:8080")
-	log.Fatalln(http.ListenAndServe(":8080", nil))
+// Main - Xray server entry point.
+func Main() {
+	registerApp().RunAndExitOnError()
 }
