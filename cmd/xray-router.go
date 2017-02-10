@@ -39,6 +39,36 @@ type xrayHandlers struct {
 	upgrader websocket.Upgrader
 }
 
+// Find contours in incoming image.
+func findContours(img *opencv.IplImage, pos int) *opencv.Seq {
+	w := img.Width()
+	h := img.Height()
+
+	// Create the output image
+	cedge := opencv.CreateImage(w, h, opencv.IPL_DEPTH_8U, 3)
+	defer cedge.Release()
+
+	// Convert to grayscale
+	gray := opencv.CreateImage(w, h, opencv.IPL_DEPTH_8U, 1)
+	edge := opencv.CreateImage(w, h, opencv.IPL_DEPTH_8U, 1)
+	defer gray.Release()
+	defer edge.Release()
+
+	opencv.CvtColor(img, gray, opencv.CV_BGR2GRAY)
+
+	opencv.Smooth(gray, edge, opencv.CV_BLUR, 3, 3, 0, 0)
+	opencv.Not(gray, edge)
+
+	// Run the edge detector on grayscale
+	opencv.Canny(gray, edge, float64(pos), float64(pos*3), 3)
+
+	opencv.Zero(cedge)
+	// copy edge points
+	opencv.Copy(img, cedge, edge)
+
+	return edge.FindContours(opencv.CV_RETR_TREE, opencv.CV_CHAIN_APPROX_SIMPLE, opencv.Point{0, 0})
+}
+
 func (v *xrayHandlers) detectObjects(data []byte) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -54,6 +84,9 @@ func (v *xrayHandlers) detectObjects(data []byte) {
 	if len(faces) > 0 {
 		var facePositions []facePosition
 		for _, value := range faces {
+			if value.X() == 0 || value.Y() == 0 {
+				continue
+			}
 			facePositions = append(facePositions, facePosition{
 				PT1: opencv.Point{
 					X: value.X() + value.Width(),
@@ -63,16 +96,20 @@ func (v *xrayHandlers) detectObjects(data []byte) {
 					X: value.X(),
 					Y: value.Y() + value.Height(),
 				},
-				Color:     opencv.ScalarAll(255.0),
+				Scalar:    255.0,
 				Thickness: 1,
 				LineType:  1,
 				Shift:     0,
 			})
 		}
+		seq := findContours(img, 2)
 		v.metadataCh <- faceObject{
 			Type:      Human,
 			Positions: facePositions,
+			Contours:  seq,
 		}
+		seq.Release()
+		img.Release()
 	} else {
 		v.metadataCh <- faceObject{
 			Type: Unknown,

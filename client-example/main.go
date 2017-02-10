@@ -168,7 +168,6 @@ func main() {
 	for {
 		select {
 		case data := <-frameData:
-			fmt.Println(len(data))
 			merr := c.WriteMessage(websocket.BinaryMessage, data)
 			if merr != nil {
 				log.Println("write:", merr)

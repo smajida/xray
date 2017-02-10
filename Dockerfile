@@ -12,6 +12,6 @@ COPY . /go/src/app
 
 RUN \
 	go-wrapper download && \
-	go-wrapper install
+	CFLAGS=-O0 go-wrapper install
 
 ENTRYPOINT ["xray"]

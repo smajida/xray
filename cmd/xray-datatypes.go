@@ -35,6 +35,7 @@ const (
 // to be sent back to the client.
 type faceObject struct {
 	Positions []facePosition
+	Contours  *opencv.Seq
 	Type      faceType
 }
 
@@ -42,7 +43,7 @@ type faceObject struct {
 // of face position in a frame.
 type facePosition struct {
 	PT1, PT2  opencv.Point
-	Color     opencv.Scalar
+	Scalar    float64
 	Thickness int
 	LineType  int
 	Shift     int
