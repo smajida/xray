@@ -6,7 +6,7 @@ Deep learning based object detection for video.
 
 ```sh
 go get -d github.com/minio/xray
-cd $GOPATH/github.com/minio/xray
+cd $GOPATH/src/github.com/minio/xray
 docker build . -t xray
 ```
 
