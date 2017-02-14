@@ -21,7 +21,6 @@ package cmd
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 
 	router "github.com/gorilla/mux"
@@ -40,6 +39,7 @@ type xrayHandlers struct {
 }
 
 // Find contours in incoming image.
+// @Deprecated
 func findContours(img *opencv.IplImage, pos int) *opencv.Seq {
 	w := img.Width()
 	h := img.Height()
@@ -69,6 +69,7 @@ func findContours(img *opencv.IplImage, pos int) *opencv.Seq {
 	return edge.FindContours(opencv.CV_RETR_TREE, opencv.CV_CHAIN_APPROX_SIMPLE, opencv.Point{0, 0})
 }
 
+// Detects face objects on incoming data.
 func (v *xrayHandlers) detectObjects(data []byte) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -77,7 +78,7 @@ func (v *xrayHandlers) detectObjects(data []byte) {
 	}()
 	img := opencv.DecodeImageMem(data)
 	if img == nil {
-		errorIf(errors.New("Invalid image input detected"), "Unable to decode incoming image")
+		errorIf(errInvalidImage, "Unable to decode incoming image")
 		return
 	}
 	faces := globalHaarCascadeClassifier.DetectObjects(img)
@@ -97,7 +98,7 @@ func (v *xrayHandlers) detectObjects(data []byte) {
 					Y: value.Y() + value.Height(),
 				},
 				Scalar:    255.0,
-				Thickness: 1,
+				Thickness: 3, // Border thickness defaulted.
 				LineType:  1,
 				Shift:     0,
 			})
@@ -105,14 +106,18 @@ func (v *xrayHandlers) detectObjects(data []byte) {
 		seq := findContours(img, 2)
 		v.metadataCh <- faceObject{
 			Type:      Human,
-			Positions: facePositions,
 			Contours:  seq,
+			Positions: facePositions,
+			Display:   true,
+			// Dummy value needs to be addressed in future.
+			Zoom: 1,
 		}
 		seq.Release()
 		img.Release()
 	} else {
 		v.metadataCh <- faceObject{
-			Type: Unknown,
+			Type:    Unknown,
+			Display: false,
 		}
 	}
 }

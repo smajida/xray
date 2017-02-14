@@ -19,37 +19,6 @@
 
 package cmd
 
-import "github.com/lazywei/go-opencv/opencv"
+import "errors"
 
-// Face type..
-type faceType string
-
-// List of face types.
-const (
-	Unknown      faceType = "unknown"
-	Human        faceType = "human"
-	HumanToddler faceType = "human-toddler"
-)
-
-// Face object contains all the data
-// to be sent back to the client.
-type faceObject struct {
-	Positions []facePosition
-	Contours  *opencv.Seq `json:",omitempty"`
-	Type      faceType
-	Display   bool
-	Zoom      int
-}
-
-// Represents the spacial rectangular co-ordinates
-// of face position in a frame.
-type facePosition struct {
-	// Co-ordinates for drawing rectangle.
-	PT1, PT2 opencv.Point
-	Scalar   float64
-	// Overally border thickness of the rectangle.
-	Thickness int
-	// Line type of the overlay rectangle.
-	LineType int
-	Shift    int
-}
+var errInvalidImage = errors.New("Invalid image input detected")
