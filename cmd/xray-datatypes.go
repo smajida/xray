@@ -35,7 +35,6 @@ const (
 // to be sent back to the client.
 type faceObject struct {
 	Positions []facePosition
-	Contours  *opencv.Seq `json:",omitempty"`
 	Type      faceType
 	Display   bool
 	Zoom      int

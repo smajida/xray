@@ -29,6 +29,11 @@ import (
 )
 
 type xrayHandlers struct {
+	// Used for calculating difference.
+	prevFrame    *opencv.IplImage
+	currentFrame *opencv.IplImage
+
+	prevDisplay bool // Remembers if previous frame was displayed.
 	// Contains the data to be sent
 	// back over the wire.
 	metadataCh chan faceObject
@@ -38,35 +43,13 @@ type xrayHandlers struct {
 	upgrader websocket.Upgrader
 }
 
-// Find contours in incoming image.
-// @Deprecated
-func findContours(img *opencv.IplImage, pos int) *opencv.Seq {
-	w := img.Width()
-	h := img.Height()
-
-	// Create the output image
-	cedge := opencv.CreateImage(w, h, opencv.IPL_DEPTH_8U, 3)
-	defer cedge.Release()
-
-	// Convert to grayscale
-	gray := opencv.CreateImage(w, h, opencv.IPL_DEPTH_8U, 1)
-	edge := opencv.CreateImage(w, h, opencv.IPL_DEPTH_8U, 1)
-	defer gray.Release()
-	defer edge.Release()
-
-	opencv.CvtColor(img, gray, opencv.CV_BGR2GRAY)
-
-	opencv.Smooth(gray, edge, opencv.CV_BLUR, 3, 3, 0, 0)
-	opencv.Not(gray, edge)
-
-	// Run the edge detector on grayscale
-	opencv.Canny(gray, edge, float64(pos), float64(pos*3), 3)
-
-	opencv.Zero(cedge)
-	// copy edge points
-	opencv.Copy(img, cedge, edge)
-
-	return edge.FindContours(opencv.CV_RETR_TREE, opencv.CV_CHAIN_APPROX_SIMPLE, opencv.Point{0, 0})
+// Detects if one should display camera.
+func (v *xrayHandlers) shouldDisplayCamera(prevFrame, currFrame *opencv.IplImage) bool {
+	var ok bool
+	if prevFrame != nil {
+		ok = detectMotionFrames(prevFrame, currFrame)
+	}
+	return ok
 }
 
 // Detects face objects on incoming data.
@@ -80,6 +63,11 @@ func (v *xrayHandlers) detectObjects(data []byte) {
 	if img == nil {
 		errorIf(errInvalidImage, "Unable to decode incoming image")
 		return
+	}
+
+	v.currentFrame = img.Clone()
+	if !v.prevDisplay {
+		v.prevDisplay = v.shouldDisplayCamera(v.prevFrame, v.currentFrame)
 	}
 	faces := globalHaarCascadeClassifier.DetectObjects(img)
 	if len(faces) > 0 {
@@ -103,32 +91,40 @@ func (v *xrayHandlers) detectObjects(data []byte) {
 				Shift:     0,
 			})
 		}
-		seq := findContours(img, 2)
-		v.metadataCh <- faceObject{
+		v.prevDisplay = len(facePositions) > 0
+		fo := faceObject{
 			Type:      Human,
-			Contours:  seq,
 			Positions: facePositions,
-			Display:   true,
-			// Dummy value needs to be addressed in future.
-			Zoom: 1,
+			Display:   v.prevDisplay,
 		}
-		seq.Release()
-		img.Release()
+		// Zooming happens relative on Android if faces are detected.
+		if len(facePositions) > 0 {
+			fo.Zoom = 1
+		} // else zoom level is zero.
+		v.metadataCh <- fo
 	} else {
 		v.metadataCh <- faceObject{
 			Type:    Unknown,
-			Display: false,
+			Display: v.prevDisplay,
+			// Zoom level is zero if we don't detect any face.
 		}
+	}
+	img.Release()
+	if v.prevFrame != nil {
+		// Relinquish previous frame and save new frame.
+		v.prevFrame.Release()
+	}
+	v.prevFrame = v.currentFrame.Clone()
+	// TODO - possible double free.
+	if v.currentFrame != nil {
+		// Release any current cloned frames as well.
+		v.currentFrame.Release()
 	}
 }
 
 // Write json data back.
 func writeFaceObject(wconn *websocket.Conn, metadataCh <-chan faceObject) {
 	fo := <-metadataCh
-	if fo.Type == Unknown {
-		// Not writing to client if face is unknown.
-		return
-	}
 	fobytes, err := json.Marshal(&fo)
 	if err != nil {
 		errorIf(err, "Unable to marshal %#v into json.", fo)
