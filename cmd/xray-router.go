@@ -150,12 +150,16 @@ func (v *xrayHandlers) DetectObject(w http.ResponseWriter, r *http.Request) {
 			errorIf(err, "Unable to read incoming binary message.")
 			break
 		}
-		if mt != websocket.BinaryMessage {
-			errorIf(err, "Unable to recognize incoming message type %d\n", mt)
+		// Support if client sent a text message, most
+		// probably its a camera metadata.
+		if mt == websocket.TextMessage {
+			printf("Client metadata %s", string(data))
 			continue
 		}
-		go v.detectObjects(data)
-		writeFaceObject(wconn, v.metadataCh)
+		if mt == websocket.BinaryMessage {
+			go v.detectObjects(data)
+			writeFaceObject(wconn, v.metadataCh)
+		}
 	}
 }
 

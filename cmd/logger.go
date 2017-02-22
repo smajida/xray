@@ -68,3 +68,7 @@ func fatalIf(err error, msg string, data ...interface{}) {
 	}
 	rlog.WithFields(fields).Fatalf(msg, data...)
 }
+
+func printf(msg string, data ...interface{}) {
+	rlog.Printf(msg, data...)
+}
