@@ -30,8 +30,8 @@ import (
 
 type xrayHandlers struct {
 	// Used for calculating difference.
-	prevFrame    *opencv.IplImage
-	currentFrame *opencv.IplImage
+	prevFrame *opencv.IplImage
+	currFrame *opencv.IplImage
 
 	prevDisplay bool // Remembers if previous frame was displayed.
 	// Contains the data to be sent
@@ -43,15 +43,6 @@ type xrayHandlers struct {
 	upgrader websocket.Upgrader
 }
 
-// Detects if one should display camera.
-func (v *xrayHandlers) shouldDisplayCamera(prevFrame, currFrame *opencv.IplImage) bool {
-	var ok bool
-	if prevFrame != nil {
-		ok = detectMotionFrames(prevFrame, currFrame)
-	}
-	return ok
-}
-
 // Detects face objects on incoming data.
 func (v *xrayHandlers) detectObjects(data []byte) {
 	defer func() {
@@ -59,67 +50,54 @@ func (v *xrayHandlers) detectObjects(data []byte) {
 			errorIf(r.(error), "Recovered from a panic in detectObjects")
 		}
 	}()
+
 	img := opencv.DecodeImageMem(data)
 	if img == nil {
 		errorIf(errInvalidImage, "Unable to decode incoming image")
 		return
 	}
+	defer img.Release()
 
-	v.currentFrame = img.Clone()
-	if !v.prevDisplay {
-		v.prevDisplay = v.shouldDisplayCamera(v.prevFrame, v.currentFrame)
-	}
-	faces := globalHaarCascadeClassifier.DetectObjects(img)
-	if len(faces) > 0 {
-		var facePositions []facePosition
-		for _, value := range faces {
-			if value.X() == 0 || value.Y() == 0 {
-				continue
-			}
-			facePositions = append(facePositions, facePosition{
-				PT1: opencv.Point{
-					X: value.X() + value.Width(),
-					Y: value.Y(),
-				},
-				PT2: opencv.Point{
-					X: value.X(),
-					Y: value.Y() + value.Height(),
-				},
-				Scalar:    255.0,
-				Thickness: 3, // Border thickness defaulted.
-				LineType:  1,
-				Shift:     0,
-			})
-		}
-		v.prevDisplay = len(facePositions) > 0
-		fo := faceObject{
-			Type:      Human,
-			Positions: facePositions,
-			Display:   v.prevDisplay,
-		}
-		// Zooming happens relative on Android if faces are detected.
-		if len(facePositions) > 0 {
-			fo.Zoom = 1
-		} // else zoom level is zero.
-		v.metadataCh <- fo
-	} else {
+	currFrame := img.Clone()
+	defer currFrame.Release()
+
+	go v.shouldDisplayCamera(currFrame)
+
+	faces := v.findFaces(currFrame)
+	if len(faces) == 0 {
 		v.metadataCh <- faceObject{
 			Type:    Unknown,
 			Display: v.prevDisplay,
 			// Zoom level is zero if we don't detect any face.
 		}
+		return
 	}
-	img.Release()
-	if v.prevFrame != nil {
-		// Relinquish previous frame and save new frame.
-		v.prevFrame.Release()
+
+	facePositions, faceFound := getFacePositions(faces)
+	fo := faceObject{
+		Type:      Human,
+		Positions: facePositions,
+		Display:   faceFound,
 	}
-	v.prevFrame = v.currentFrame.Clone()
-	// TODO - possible double free.
-	if v.currentFrame != nil {
-		// Release any current cloned frames as well.
-		v.currentFrame.Release()
+
+	// Zooming happens relative on Android if faces are detected.
+	switch len(facePositions) {
+	case 1:
+		// For single face detection zoom in.
+		fo.Zoom = 1
+	case 2, 3, 4:
+		// For more than 1 Zoom out for more coverage.
+		fo.Zoom = -1
+	default:
+		// No people found no zooming required.
+		fo.Zoom = 0
 	}
+
+	// Send the data to client.
+	v.metadataCh <- fo
+
+	v.prevDisplay = faceFound
+	v.persistCurrFrame(currFrame)
 }
 
 // Write json data back.
@@ -150,12 +128,14 @@ func (v *xrayHandlers) DetectObject(w http.ResponseWriter, r *http.Request) {
 			errorIf(err, "Unable to read incoming binary message.")
 			break
 		}
+
 		// Support if client sent a text message, most
 		// probably its a camera metadata.
 		if mt == websocket.TextMessage {
 			printf("Client metadata %s", string(data))
 			continue
 		}
+
 		if mt == websocket.BinaryMessage {
 			go v.detectObjects(data)
 			writeFaceObject(wconn, v.metadataCh)

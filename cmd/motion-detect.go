@@ -96,10 +96,6 @@ func detectMotion(motion, result *opencv.IplImage, xStart, xStop, yStart, yStop,
 
 			pt2.X = maxX
 			pt2.Y = maxY
-			opencv.Rectangle(result,
-				pt1,
-				pt2,
-				opencv.NewScalar(0.0, 0.0, 255.0, 255.0), 1, 1, 0)
 		}
 		return numberOfChanges
 
@@ -107,7 +103,7 @@ func detectMotion(motion, result *opencv.IplImage, xStart, xStop, yStart, yStop,
 	return 0
 }
 
-func detectMotionFrames(frame, img *opencv.IplImage) bool {
+func detectMovingFrames(frame, img *opencv.IplImage) bool {
 	// create the needed frames
 	w := frame.Width()
 	h := frame.Height()
