@@ -45,108 +45,107 @@ func diffImg(t0, t1, t2 *opencv.IplImage) (diff *opencv.IplImage) {
 
 }
 
-func detectMotion(motion, result *opencv.IplImage, xStart, xStop, yStart, yStop, maxDevitaion int) int {
+// Returns if there is motion with in the globally accepted threshold.
+func isThereMotion(motionFrame, origFrame *opencv.IplImage) bool {
+	// Detect motion in window
+	xStart, xStop := 10, origFrame.GetMat().Cols()-11
+	yStart, yStop := 10, origFrame.GetMat().Rows()-11
 
-	_, stdDev := motion.MeanStdDev()
+	minX := motionFrame.Width()
+	minY := motionFrame.Height()
 
-	if int(stdDev.Val()[0]) < maxDevitaion {
-		numberOfChanges, maxX, maxY := 0, 0, 0
-		minX := motion.Width()
-		minY := motion.Height()
+	_, stdDev := motionFrame.MeanStdDev()
+	if int(stdDev.Val()[0]) > globalMaxDeviation {
+		return false
+	} // else < globalMaxDeviation
 
-		for j := yStart; j < yStop; j += 2 {
-			for i := xStart; i < xStop; i += 2 {
-				if int(motion.Get2D(i, j).Val()[0]) == 255 {
-					numberOfChanges++
-					if minX > i {
-						minX = i
-					}
-					if maxX < i {
-						maxX = i
-					}
-					if minY > j {
-						minY = j
-					}
-					if maxY < j {
-						maxY = i
-					}
+	var (
+		numberOfChanges int
+		maxX            int
+		maxY            int
+	)
+
+	for j := yStart; j < yStop; j += 2 {
+		for i := xStart; i < xStop; i += 2 {
+			if int(motionFrame.Get2D(i, j).Val()[0]) == 255 {
+				numberOfChanges++
+				if minX > i {
+					minX = i
+				}
+				if maxX < i {
+					maxX = i
+				}
+				if minY > j {
+					minY = j
+				}
+				if maxY < j {
+					maxY = i
 				}
 			}
 		}
-
-		if numberOfChanges > 0 {
-			if minX-10 > 0 {
-				minX -= 10
-			}
-			if minY-10 > 0 {
-				minY -= 10
-			}
-			if maxX+10 < result.Width()-1 {
-				maxX += 10
-			}
-			if maxY+10 < result.Height()-1 {
-				maxY += 10
-			}
-
-			var pt1 opencv.Point
-			var pt2 opencv.Point
-
-			pt1.X = minX
-			pt1.Y = minY
-
-			pt2.X = maxX
-			pt2.Y = maxY
-		}
-		return numberOfChanges
-
 	}
-	return 0
+
+	return numberOfChanges > globalThereIsMotion
 }
 
-func detectMovingFrames(frame, img *opencv.IplImage) bool {
-	// create the needed frames
-	w := frame.Width()
-	h := frame.Height()
+type motionWindowThreshold struct {
+	// Detect motion in following window
+	xStart, xStop int
+	yStart, yStop int
+}
 
-	currentFrame := opencv.CreateImage(w, h, opencv.IPL_DEPTH_8U, 1)
-	nextFrame := opencv.CreateImage(w, h, opencv.IPL_DEPTH_8U, 1)
+const (
+	// If more than 'thereIsMotion' pixels are changed, we say there is motion.
+	globalThereIsMotion = 5
+
+	// Maximum deviation of the image, the higher the value, the more motion is allowed
+	globalMaxDeviation = 20
+)
+
+func detectMovingFrames(currFrame, nextFrame *opencv.IplImage) bool {
+	// create the needed frames
+	w := currFrame.Width()
+	h := currFrame.Height()
+
+	cfg := opencv.CreateImage(w, h, opencv.IPL_DEPTH_8U, 1)
+	nfg := opencv.CreateImage(w, h, opencv.IPL_DEPTH_8U, 1)
 
 	// convert to grayscale
-	opencv.CvtColor(frame, currentFrame, opencv.CV_BGR2GRAY)
-	opencv.CvtColor(frame, nextFrame, opencv.CV_BGR2GRAY)
-
-	var (
-		// Detect motion in window
-		xStart = 10
-		xStop  = currentFrame.GetMat().Cols() - 11
-		yStart = 10
-		yStop  = currentFrame.GetMat().Rows() - 11
-
-		// If more than 'thereIsMotion' pixels are changed, we say there is motion.
-		thereIsMotion = 5
-
-		// Maximum deviation of the image, the higher the value, the more motion is allowed
-		maxDeviation = 20
-	)
+	opencv.CvtColor(currFrame, cfg, opencv.CV_BGR2GRAY)
+	opencv.CvtColor(currFrame, nfg, opencv.CV_BGR2GRAY)
 
 	kernelErode := opencv.CreateStructuringElement(2, 2, 1, 1, opencv.CV_MORPH_RECT)
 	defer kernelErode.ReleaseElement()
 
-	prevFrame := currentFrame
-	currentFrame = nextFrame
-	result := img.Clone()
-	nextFrame = opencv.CreateImage(w, h, opencv.IPL_DEPTH_8U, 1)
-	opencv.CvtColor(img, nextFrame, opencv.CV_BGR2GRAY)
+	pfg := cfg
+	cfg = nfg
 
-	motion := diffImg(prevFrame, currentFrame, nextFrame)
-	// // motion := nextFrame.Clone()
+	nfg = opencv.CreateImage(w, h, opencv.IPL_DEPTH_8U, 1)
+	opencv.CvtColor(nextFrame, nfg, opencv.CV_BGR2GRAY)
+
+	motion := diffImg(pfg, cfg, nfg)
+	defer pfg.Release()
+	defer motion.Release()
+
 	opencv.Threshold(motion, motion, float64(10), 255, opencv.CV_THRESH_BINARY)
 	opencv.Erode(motion, motion, kernelErode, 1)
 
-	numberOfChanges := detectMotion(motion, result, xStart, xStop, yStart, yStop, maxDeviation)
-	prevFrame.Release()
-	result.Release()
-	motion.Release()
+	return isThereMotion(motion, pfg)
+}
 
-	return numberOfChanges > thereIsMotion
+// Detects if one should display camera.
+func (v *xrayHandlers) shouldDisplayCamera(currFrame *opencv.IplImage) {
+	var display bool
+
+	if v.prevFrame != nil && currFrame != nil {
+		display = detectMovingFrames(v.prevFrame, currFrame)
+	}
+
+	fo := faceObject{
+		Type:    Unknown,
+		Display: display,
+		Zoom:    -1,
+	}
+
+	v.writeClntData(fo)
 }

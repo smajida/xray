@@ -20,7 +20,6 @@
 package cmd
 
 import (
-	"encoding/json"
 	"net/http"
 
 	router "github.com/gorilla/mux"
@@ -33,10 +32,8 @@ type xrayHandlers struct {
 	prevFrame *opencv.IplImage
 	currFrame *opencv.IplImage
 
-	prevDisplay bool // Remembers if previous frame was displayed.
-	// Contains the data to be sent
-	// back over the wire.
-	metadataCh chan faceObject
+	// Represents client response channel, sends client data.
+	clntRespCh chan interface{}
 
 	// Used for upgrading the incoming HTTP
 	// wconnection into a websocket wconnection.
@@ -65,14 +62,16 @@ func (v *xrayHandlers) detectObjects(data []byte) {
 
 	faces := v.findFaces(currFrame)
 	if len(faces) == 0 {
-		v.metadataCh <- faceObject{
+		fo := faceObject{
 			Type:    Unknown,
-			Display: v.prevDisplay,
-			// Zoom level is zero if we don't detect any face.
+			Display: false,
+			Zoom:    -1,
 		}
+		v.writeClntData(fo)
 		return
 	}
 
+	// Detected faces, decode their positions.
 	facePositions, faceFound := getFacePositions(faces)
 	fo := faceObject{
 		Type:      Human,
@@ -81,37 +80,20 @@ func (v *xrayHandlers) detectObjects(data []byte) {
 	}
 
 	// Zooming happens relative on Android if faces are detected.
-	switch len(facePositions) {
-	case 1:
-		// For single face detection zoom in.
-		fo.Zoom = 1
-	case 2, 3, 4:
-		// For more than 1 Zoom out for more coverage.
-		fo.Zoom = -1
-	default:
-		// No people found no zooming required.
-		fo.Zoom = 0
+	if faceFound {
+		switch len(facePositions) {
+		case 1:
+			// For single face detection zoom in.
+			fo.Zoom = 1
+		default:
+			// For more than 1 Zoom out for more coverage.
+			fo.Zoom = -1
+		}
 	}
 
 	// Send the data to client.
-	v.metadataCh <- fo
-
-	v.prevDisplay = faceFound
+	v.writeClntData(fo)
 	v.persistCurrFrame(currFrame)
-}
-
-// Write json data back.
-func writeFaceObject(wconn *websocket.Conn, metadataCh <-chan faceObject) {
-	fo := <-metadataCh
-	fobytes, err := json.Marshal(&fo)
-	if err != nil {
-		errorIf(err, "Unable to marshal %#v into json.", fo)
-		return
-	}
-	if err = wconn.WriteMessage(websocket.TextMessage, fobytes); err != nil {
-		errorIf(err, "Unable to write to client.")
-		return
-	}
 }
 
 // DetectObject reads the incoming data.
@@ -121,9 +103,12 @@ func (v *xrayHandlers) DetectObject(w http.ResponseWriter, r *http.Request) {
 		errorIf(err, "Unable to perform websocket upgrade the request.")
 		return
 	}
-	defer wconn.Close()
+	wc := wConn{wconn}
+	defer wc.Close()
+
+	// Waiting on incoming reads.
 	for {
-		mt, data, err := wconn.ReadMessage()
+		mt, data, err := wc.ReadMessage()
 		if err != nil {
 			errorIf(err, "Unable to read incoming binary message.")
 			break
@@ -138,7 +123,7 @@ func (v *xrayHandlers) DetectObject(w http.ResponseWriter, r *http.Request) {
 
 		if mt == websocket.BinaryMessage {
 			go v.detectObjects(data)
-			writeFaceObject(wconn, v.metadataCh)
+			wc.WriteMessage(mt, v.clntRespCh)
 		}
 	}
 }
@@ -146,7 +131,7 @@ func (v *xrayHandlers) DetectObject(w http.ResponseWriter, r *http.Request) {
 // Initialize a new xray handlers.
 func newXRayHandlers() *xrayHandlers {
 	return &xrayHandlers{
-		metadataCh: make(chan faceObject),
+		clntRespCh: make(chan interface{}),
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
 				return true

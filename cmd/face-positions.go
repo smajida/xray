@@ -22,10 +22,13 @@ package cmd
 import "github.com/lazywei/go-opencv/opencv"
 
 func getFacePositions(faces []*opencv.Rect) (facePositions []facePosition, faceFound bool) {
+
 	for _, value := range faces {
 		if value.X() == 0 || value.Y() == 0 {
 			continue
+
 		}
+
 		facePositions = append(facePositions, facePosition{
 			PT1: opencv.Point{
 				X: value.X() + value.Width(),
@@ -41,6 +44,7 @@ func getFacePositions(faces []*opencv.Rect) (facePositions []facePosition, faceF
 			Shift:     0,
 		})
 	}
+
 	return facePositions, len(facePositions) > 0
 }
 
@@ -49,24 +53,10 @@ func (v *xrayHandlers) persistCurrFrame(currFrame *opencv.IplImage) {
 	v.prevFrame = currFrame.Clone()
 }
 
-// Detects if one should display camera.
-func (v *xrayHandlers) shouldDisplayCamera(currFrame *opencv.IplImage) {
-	if !v.prevDisplay {
-		if v.prevFrame != nil && currFrame != nil {
-			v.prevDisplay = detectMovingFrames(v.prevFrame, currFrame)
-			v.prevFrame.Release()
-		}
-	}
-	v.metadataCh <- faceObject{
-		Type:    Unknown,
-		Display: v.prevDisplay,
-		// Zoom level is zero if we don't detect any face.
-	}
-}
-
 func (v *xrayHandlers) findFaces(currFrame *opencv.IplImage) (faces []*opencv.Rect) {
 	gray := opencv.CreateImage(currFrame.Width(), currFrame.Height(), opencv.IPL_DEPTH_8U, 1)
 	opencv.CvtColor(currFrame, gray, opencv.CV_BGR2GRAY)
 	defer gray.Release()
+
 	return globalHaarCascadeClassifier.DetectObjects(gray)
 }
