@@ -19,7 +19,16 @@
 
 package cmd
 
-import "github.com/lazywei/go-opencv/opencv"
+import (
+	"os"
+
+	"github.com/lazywei/go-opencv/opencv"
+)
+
+func init() {
+	// Default haar cascade classifier used for detecting faces.
+	globalHaarCascadeClassifier = opencv.LoadHaarClassifierCascade("haarcascade_frontalface_alt.xml")
+}
 
 // Global constants for Xray.
 const (
@@ -27,11 +36,10 @@ const (
 )
 
 var (
-	// Default haar cascade classifier used for detecting faces.
-	globalHaarCascadeClassifier = opencv.LoadHaarClassifierCascade("haarcascade_frontalface_alt.xml")
-
-	globalXrayCertFile = "/etc/ssl/public.crt"
-	globalXrayKeyFile  = "/etc/ssl/private.key"
+	globalHaarCascadeClassifier *opencv.HaarCascade
+	globalXrayCertFile          = "/etc/ssl/public.crt"
+	globalXrayKeyFile           = "/etc/ssl/private.key"
+	globalDebug                 = os.Getenv("DEBUG") != ""
 
 	// List of all other classifiers.
 )

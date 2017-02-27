@@ -139,11 +139,11 @@ func (v *xrayHandlers) shouldDisplayCamera(sr sensorRecord) bool {
 }
 
 type sensorRecord struct {
-	Name      string   `json:"sensorName"`
-	Type      string   `json:"sensorType"`
-	Timestamp string   `json:"timestamp"`
-	Accuracy  string   `json:"accuracy"`
-	Values    []string `json:"values"`
+	Name      string      `json:"sensorName"`
+	Type      int         `json:"sensorType"`
+	Timestamp int         `json:"timestamp"`
+	Accuracy  int         `json:"accuracy"`
+	Values    [][]float64 `json:"values"`
 }
 
 // Saves current sensor data for motion detection.

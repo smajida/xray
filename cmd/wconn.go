@@ -21,6 +21,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"log"
 
 	"github.com/gorilla/websocket"
 )
@@ -36,6 +37,9 @@ func (w *wConn) WriteMessage(mtype int, dataCh <-chan interface{}) {
 	if err != nil {
 		errorIf(err, "Unable to marshal %#v into json.", fo)
 		return
+	}
+	if globalDebug {
+		log.Println(string(fobytes))
 	}
 	if err = w.Conn.WriteMessage(mtype, fobytes); err != nil {
 		errorIf(err, "Unable to write to client.")

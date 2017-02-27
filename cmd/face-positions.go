@@ -21,7 +21,7 @@ package cmd
 
 import "github.com/lazywei/go-opencv/opencv"
 
-func getFacePositions(faces []*opencv.Rect) (facePositions []facePosition, faceFound bool) {
+func getFacePositions(faces []*opencv.Rect) (facePositions []facePosition) {
 	for _, value := range faces {
 		if value.X() == 0 || value.Y() == 0 {
 			continue
@@ -42,8 +42,7 @@ func getFacePositions(faces []*opencv.Rect) (facePositions []facePosition, faceF
 			Shift:     0,
 		})
 	}
-
-	return facePositions, len(facePositions) > 0
+	return facePositions
 }
 
 func (v *xrayHandlers) findFaces(currFrame *opencv.IplImage) (faces []*opencv.Rect) {

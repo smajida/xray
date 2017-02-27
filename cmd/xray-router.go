@@ -20,6 +20,7 @@
 package cmd
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"sync"
@@ -56,7 +57,6 @@ func (v *xrayHandlers) detectObjects(data []byte) {
 		errorIf(errInvalidImage, "Unable to decode incoming image")
 		return
 	}
-	defer img.Release()
 
 	faces := v.findFaces(img)
 	if len(faces) == 0 {
@@ -70,11 +70,12 @@ func (v *xrayHandlers) detectObjects(data []byte) {
 	}
 
 	// Detected faces, decode their positions.
-	facePositions, faceFound := getFacePositions(faces)
+	facePositions := getFacePositions(faces)
+	faceFound := len(facePositions) > 0
 	fo := faceObject{
 		Type:      Human,
 		Positions: facePositions,
-		Display:   faceFound,
+		Display:   true || faceFound,
 	}
 
 	// Zooming happens relative on Android if faces are detected.
@@ -101,15 +102,19 @@ func (v *xrayHandlers) detectMotion(data []byte) {
 		}
 	}()
 
+	if !bytes.Contains(data, []byte("sensorName")) {
+		return
+	}
+
 	var sr sensorRecord
 	if err := json.Unmarshal(data, &sr); err != nil {
-		errorIf(err, "Unable to extract sensor record")
+		errorIf(err, "Unable to extract sensor record %s", string(data))
 		return
 	}
 
 	fo := faceObject{
 		Type:    Unknown,
-		Display: v.shouldDisplayCamera(sr),
+		Display: true || v.shouldDisplayCamera(sr),
 		Zoom:    0,
 	}
 
@@ -135,10 +140,15 @@ func (v *xrayHandlers) Detect(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 
+		if len(data) == 0 {
+			continue
+		}
+
 		// Support if client sent a text message, most
 		// probably its sensor or location metadata.
 		if mt == websocket.TextMessage {
 			go v.detectMotion(data)
+			wc.WriteMessage(mt, v.clntRespCh)
 			continue
 		}
 
@@ -152,7 +162,7 @@ func (v *xrayHandlers) Detect(w http.ResponseWriter, r *http.Request) {
 // Initialize a new xray handlers.
 func newXRayHandlers() *xrayHandlers {
 	return &xrayHandlers{
-		clntRespCh: make(chan interface{}),
+		clntRespCh: make(chan interface{}, 1000),
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
 				return true
