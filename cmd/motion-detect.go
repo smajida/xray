@@ -117,35 +117,35 @@ func detectMovingFrames(currFrame, nextFrame *opencv.IplImage) bool {
 	kernelErode := opencv.CreateStructuringElement(2, 2, 1, 1, opencv.CV_MORPH_RECT)
 	defer kernelErode.ReleaseElement()
 
-	pfg := cfg
-	cfg = nfg
-
-	nfg = opencv.CreateImage(w, h, opencv.IPL_DEPTH_8U, 1)
-	opencv.CvtColor(nextFrame, nfg, opencv.CV_BGR2GRAY)
-
-	motion := diffImg(pfg, cfg, nfg)
-	defer pfg.Release()
+	motion := diffImg(cfg, nfg, nextFrame)
 	defer motion.Release()
 
 	opencv.Threshold(motion, motion, float64(10), 255, opencv.CV_THRESH_BINARY)
 	opencv.Erode(motion, motion, kernelErode, 1)
 
-	return isThereMotion(motion, pfg)
+	return isThereMotion(motion, cfg)
 }
 
 // Detects if one should display camera.
-func (v *xrayHandlers) shouldDisplayCamera(currFrame *opencv.IplImage) {
+func (v *xrayHandlers) shouldDisplayCamera(currFrame *opencv.IplImage) bool {
 	var display bool
 
-	if v.prevFrame != nil && currFrame != nil {
-		display = detectMovingFrames(v.prevFrame, currFrame)
+	v.RLock()
+	prevFrame := v.prevFrame
+	v.RUnlock()
+
+	if prevFrame != nil && currFrame != nil {
+		display = detectMovingFrames(prevFrame, currFrame)
 	}
 
-	fo := faceObject{
-		Type:    Unknown,
-		Display: display,
-		Zoom:    -1,
-	}
+	return display
+}
 
-	v.writeClntData(fo)
+// Saves current frame as previous frame for motion detection.
+func (v *xrayHandlers) persistCurrFrame(currFrame *opencv.IplImage) {
+	if currFrame != nil {
+		v.Lock()
+		v.prevFrame = currFrame
+		v.Unlock()
+	}
 }

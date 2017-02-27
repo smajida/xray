@@ -21,6 +21,7 @@ package cmd
 
 import (
 	"net/http"
+	"sync"
 
 	router "github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
@@ -28,9 +29,10 @@ import (
 )
 
 type xrayHandlers struct {
+	sync.RWMutex
+
 	// Used for calculating difference.
 	prevFrame *opencv.IplImage
-	currFrame *opencv.IplImage
 
 	// Represents client response channel, sends client data.
 	clntRespCh chan interface{}
@@ -55,17 +57,12 @@ func (v *xrayHandlers) detectObjects(data []byte) {
 	}
 	defer img.Release()
 
-	currFrame := img.Clone()
-	defer currFrame.Release()
-
-	go v.shouldDisplayCamera(currFrame)
-
-	faces := v.findFaces(currFrame)
+	faces := v.findFaces(img)
 	if len(faces) == 0 {
 		fo := faceObject{
 			Type:    Unknown,
-			Display: false,
-			Zoom:    -1,
+			Display: true,
+			Zoom:    0,
 		}
 		v.writeClntData(fo)
 		return
@@ -93,11 +90,38 @@ func (v *xrayHandlers) detectObjects(data []byte) {
 
 	// Send the data to client.
 	v.writeClntData(fo)
-	v.persistCurrFrame(currFrame)
 }
 
-// DetectObject reads the incoming data.
-func (v *xrayHandlers) DetectObject(w http.ResponseWriter, r *http.Request) {
+func (v *xrayHandlers) detectMotion(data []byte) {
+	defer func() {
+		if r := recover(); r != nil {
+			errorIf(r.(error), "Recovered from a panic in detectMotion")
+		}
+	}()
+
+	img := opencv.DecodeImageMem(data)
+	if img == nil {
+		errorIf(errInvalidImage, "Unable to decode incoming image")
+		return
+	}
+
+	currFrame := opencv.CreateImage(img.Width(), img.Height(), opencv.IPL_DEPTH_8U, 1)
+	opencv.CvtColor(img, currFrame, opencv.CV_BGR2GRAY)
+	defer currFrame.Release()
+
+	display := v.shouldDisplayCamera(currFrame)
+	fo := faceObject{
+		Type:    Unknown,
+		Display: true || display,
+		Zoom:    0,
+	}
+
+	v.writeClntData(fo)
+	v.persistCurrFrame(img)
+}
+
+// Detect detects metadata about the incoming data.
+func (v *xrayHandlers) Detect(w http.ResponseWriter, r *http.Request) {
 	wconn, err := v.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		errorIf(err, "Unable to perform websocket upgrade the request.")
@@ -122,6 +146,7 @@ func (v *xrayHandlers) DetectObject(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if mt == websocket.BinaryMessage {
+			// go v.detectMotion(data)
 			go v.detectObjects(data)
 			wc.WriteMessage(mt, v.clntRespCh)
 		}
@@ -157,5 +182,5 @@ func registerXRayRouter(mux *router.Router) {
 	xrayRouter := mux.NewRoute().PathPrefix("/").Subrouter()
 
 	// Currently there is only one handler.
-	xrayRouter.Methods("GET").HandlerFunc(xray.DetectObject)
+	xrayRouter.Methods("GET").HandlerFunc(xray.Detect)
 }
