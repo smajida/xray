@@ -19,7 +19,11 @@
 
 package cmd
 
-import "github.com/lazywei/go-opencv/opencv"
+import (
+	"reflect"
+
+	"github.com/lazywei/go-opencv/opencv"
+)
 
 var (
 	maxDevitaion int
@@ -127,25 +131,24 @@ func detectMovingFrames(currFrame, nextFrame *opencv.IplImage) bool {
 }
 
 // Detects if one should display camera.
-func (v *xrayHandlers) shouldDisplayCamera(currFrame *opencv.IplImage) bool {
-	var display bool
-
+func (v *xrayHandlers) shouldDisplayCamera(sr sensorRecord) bool {
 	v.RLock()
-	prevFrame := v.prevFrame
+	prevSR := v.prevSR
 	v.RUnlock()
-
-	if prevFrame != nil && currFrame != nil {
-		display = detectMovingFrames(prevFrame, currFrame)
-	}
-
-	return display
+	return !reflect.DeepEqual(prevSR.Values, sr.Values)
 }
 
-// Saves current frame as previous frame for motion detection.
-func (v *xrayHandlers) persistCurrFrame(currFrame *opencv.IplImage) {
-	if currFrame != nil {
-		v.Lock()
-		v.prevFrame = currFrame
-		v.Unlock()
-	}
+type sensorRecord struct {
+	Name      string   `json:"sensorName"`
+	Type      string   `json:"sensorType"`
+	Timestamp string   `json:"timestamp"`
+	Accuracy  string   `json:"accuracy"`
+	Values    []string `json:"values"`
+}
+
+// Saves current sensor data for motion detection.
+func (v *xrayHandlers) persistCurrentSensor(sr sensorRecord) {
+	v.Lock()
+	v.prevSR = sr
+	v.Unlock()
 }

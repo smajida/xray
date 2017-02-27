@@ -20,6 +20,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"net/http"
 	"sync"
 
@@ -32,7 +33,7 @@ type xrayHandlers struct {
 	sync.RWMutex
 
 	// Used for calculating difference.
-	prevFrame *opencv.IplImage
+	prevSR sensorRecord
 
 	// Represents client response channel, sends client data.
 	clntRespCh chan interface{}
@@ -92,6 +93,7 @@ func (v *xrayHandlers) detectObjects(data []byte) {
 	v.writeClntData(fo)
 }
 
+// Detects motion based on sensor difference.
 func (v *xrayHandlers) detectMotion(data []byte) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -99,25 +101,20 @@ func (v *xrayHandlers) detectMotion(data []byte) {
 		}
 	}()
 
-	img := opencv.DecodeImageMem(data)
-	if img == nil {
-		errorIf(errInvalidImage, "Unable to decode incoming image")
+	var sr sensorRecord
+	if err := json.Unmarshal(data, &sr); err != nil {
+		errorIf(err, "Unable to extract sensor record")
 		return
 	}
 
-	currFrame := opencv.CreateImage(img.Width(), img.Height(), opencv.IPL_DEPTH_8U, 1)
-	opencv.CvtColor(img, currFrame, opencv.CV_BGR2GRAY)
-	defer currFrame.Release()
-
-	display := v.shouldDisplayCamera(currFrame)
 	fo := faceObject{
 		Type:    Unknown,
-		Display: true || display,
+		Display: v.shouldDisplayCamera(sr),
 		Zoom:    0,
 	}
 
 	v.writeClntData(fo)
-	v.persistCurrFrame(img)
+	v.persistCurrentSensor(sr)
 }
 
 // Detect detects metadata about the incoming data.
@@ -139,14 +136,13 @@ func (v *xrayHandlers) Detect(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Support if client sent a text message, most
-		// probably its a camera metadata.
+		// probably its sensor or location metadata.
 		if mt == websocket.TextMessage {
-			printf("Client metadata %s", string(data))
+			go v.detectMotion(data)
 			continue
 		}
 
 		if mt == websocket.BinaryMessage {
-			// go v.detectMotion(data)
 			go v.detectObjects(data)
 			wc.WriteMessage(mt, v.clntRespCh)
 		}
