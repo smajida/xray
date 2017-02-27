@@ -39,6 +39,9 @@ type xrayHandlers struct {
 	// Represents client response channel, sends client data.
 	clntRespCh chan interface{}
 
+	// Display memory channels.
+	displayCh, displayRecvCh chan bool
+
 	// Used for upgrading the incoming HTTP
 	// wconnection into a websocket wconnection.
 	upgrader websocket.Upgrader
@@ -54,32 +57,40 @@ func (v *xrayHandlers) detectObjects(data []byte) {
 
 	img := opencv.DecodeImageMem(data)
 	if img == nil {
+		v.displayCh <- false
+		fo := faceObject{
+			Type:    Unknown,
+			Display: <-v.displayRecvCh,
+			Zoom:    0,
+		}
+		v.clntRespCh <- fo
 		errorIf(errInvalidImage, "Unable to decode incoming image")
 		return
 	}
 
 	faces := v.findFaces(img)
 	if len(faces) == 0 {
+		v.displayCh <- false
 		fo := faceObject{
 			Type:    Unknown,
-			Display: true,
+			Display: <-v.displayRecvCh,
 			Zoom:    0,
 		}
-		v.writeClntData(fo)
+		v.clntRespCh <- fo
 		return
 	}
 
 	// Detected faces, decode their positions.
 	facePositions := getFacePositions(faces)
-	faceFound := len(facePositions) > 0
+	v.displayCh <- len(facePositions) > 0
 	fo := faceObject{
 		Type:      Human,
 		Positions: facePositions,
-		Display:   true || faceFound,
+		Display:   <-v.displayRecvCh,
 	}
 
 	// Zooming happens relative on Android if faces are detected.
-	if faceFound {
+	if fo.Display {
 		switch len(facePositions) {
 		case 1:
 			// For single face detection zoom in.
@@ -91,7 +102,7 @@ func (v *xrayHandlers) detectObjects(data []byte) {
 	}
 
 	// Send the data to client.
-	v.writeClntData(fo)
+	v.clntRespCh <- fo
 }
 
 // Detects motion based on sensor difference.
@@ -102,23 +113,27 @@ func (v *xrayHandlers) detectMotion(data []byte) {
 		}
 	}()
 
-	if !bytes.Contains(data, []byte("sensorName")) {
-		return
-	}
-
 	var sr sensorRecord
 	if err := json.Unmarshal(data, &sr); err != nil {
+		v.displayCh <- false
+		fo := faceObject{
+			Type:    Unknown,
+			Display: <-v.displayRecvCh,
+			Zoom:    0,
+		}
+		v.clntRespCh <- fo
 		errorIf(err, "Unable to extract sensor record %s", string(data))
 		return
 	}
 
+	v.displayCh <- v.shouldDisplayCamera(sr)
 	fo := faceObject{
 		Type:    Unknown,
-		Display: true || v.shouldDisplayCamera(sr),
+		Display: <-v.displayRecvCh,
 		Zoom:    0,
 	}
 
-	v.writeClntData(fo)
+	v.clntRespCh <- fo
 	v.persistCurrentSensor(sr)
 }
 
@@ -147,22 +162,25 @@ func (v *xrayHandlers) Detect(w http.ResponseWriter, r *http.Request) {
 		// Support if client sent a text message, most
 		// probably its sensor or location metadata.
 		if mt == websocket.TextMessage {
+			// Ignore all other forms of incoming data.
+			if !bytes.Contains(data, []byte("sensorName")) {
+				continue
+			}
 			go v.detectMotion(data)
-			wc.WriteMessage(mt, v.clntRespCh)
-			continue
-		}
-
-		if mt == websocket.BinaryMessage {
+		} else if mt == websocket.BinaryMessage {
 			go v.detectObjects(data)
-			wc.WriteMessage(mt, v.clntRespCh)
 		}
+		wc.WriteMessage(mt, v.clntRespCh)
 	}
 }
 
 // Initialize a new xray handlers.
 func newXRayHandlers() *xrayHandlers {
+	displayCh := make(chan bool)
 	return &xrayHandlers{
-		clntRespCh: make(chan interface{}, 1000),
+		clntRespCh:    make(chan interface{}, 15000),
+		displayCh:     displayCh,
+		displayRecvCh: displayMemoryRoutine(displayCh),
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
 				return true

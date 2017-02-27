@@ -19,28 +19,38 @@
 
 package cmd
 
-import "github.com/lazywei/go-opencv/opencv"
+import "time"
 
-func getFacePositions(faces []*opencv.Rect) (facePositions []facePosition) {
-	for _, value := range faces {
-		facePositions = append(facePositions, facePosition{
-			PT1: opencv.Point{
-				X: value.X() + value.Width(),
-				Y: value.Y(),
-			},
-			PT2: opencv.Point{
-				X: value.X(),
-				Y: value.Y() + value.Height(),
-			},
-			Scalar:    255.0,
-			Thickness: 3, // Border thickness defaulted to '3'.
-			LineType:  1,
-			Shift:     0,
-		})
-	}
-	return facePositions
-}
+var timeThreshold = 5 * time.Minute
 
-func (v *xrayHandlers) findFaces(currFrame *opencv.IplImage) (faces []*opencv.Rect) {
-	return globalHaarCascadeClassifier.DetectObjects(currFrame)
+// Display memory routine implements a way to receive
+// previously remembered memory, so that the alice client
+// has a graceful window of 5 minutes.
+func displayMemoryRoutine(displayCh <-chan bool) chan bool {
+	displayRecvCh := make(chan bool)
+	go func() {
+		t1 := time.Now().UTC()
+		var prevDisplay bool
+		for {
+			select {
+			case ok := <-displayCh:
+				t2 := time.Now().UTC()
+				if !ok {
+					if t1.Sub(t2) > timeThreshold {
+						displayRecvCh <- false
+						// Reset the time.
+						t1 = time.Now().UTC()
+						prevDisplay = false
+						continue
+					}
+					displayRecvCh <- prevDisplay
+					continue
+				}
+				displayRecvCh <- ok
+				prevDisplay = ok
+			}
+		}
+	}()
+
+	return displayRecvCh
 }

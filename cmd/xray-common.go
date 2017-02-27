@@ -18,8 +18,3 @@
  */
 
 package cmd
-
-func (v *xrayHandlers) writeClntData(fo faceObject) {
-	v.clntRespCh <- fo
-	// Wrote to face detected object to client response channel.
-}
