@@ -42,5 +42,7 @@ func getFacePositions(faces []*opencv.Rect) (facePositions []facePosition) {
 }
 
 func (v *xrayHandlers) findFaces(currFrame *opencv.IplImage) (faces []*opencv.Rect) {
+	// Default haar cascade classifier used for detecting faces.
+	globalHaarCascadeClassifier := opencv.LoadHaarClassifierCascade("haarcascade_frontalface_alt.xml")
 	return globalHaarCascadeClassifier.DetectObjects(currFrame)
 }

@@ -170,7 +170,7 @@ func (v *xrayHandlers) Detect(w http.ResponseWriter, r *http.Request) {
 		} else if mt == websocket.BinaryMessage {
 			go v.detectObjects(data)
 		}
-		wc.WriteMessage(mt, v.clntRespCh)
+		wc.WriteMessage(websocket.TextMessage, v.clntRespCh)
 	}
 }
 
