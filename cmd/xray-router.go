@@ -22,9 +22,11 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"sync"
 
+	"github.com/fwessels/go-cv"
 	router "github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/lazywei/go-opencv/opencv"
@@ -68,7 +70,29 @@ func (v *xrayHandlers) detectObjects(data []byte) {
 		return
 	}
 
-	faces := v.findFaces(img)
+	mat := gocv.DecodeImageMemM(data)
+	if mat == nil {
+		v.displayCh <- false
+		fo := faceObject{
+			Type:    Unknown,
+			Display: <-v.displayRecvCh,
+			Zoom:    0,
+		}
+		v.clntRespCh <- fo
+		errorIf(errInvalidImage, "Unable to decode incoming image")
+		return
+	}
+
+	var faces []*opencv.Rect
+	if globalUseGoCV {
+		faces = v.findSimdFaces(mat)
+	} else {
+		faces = v.findFaces(img)
+	}
+	if len(faces) > 1 {
+		fmt.Println("faces", faces)
+	}
+
 	if len(faces) == 0 {
 		v.displayCh <- false
 		fo := faceObject{
