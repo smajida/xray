@@ -24,14 +24,13 @@ import (
 	"sync"
 	"unsafe"
 
-	"github.com/fwessels/go-cv"
+	"github.com/minio/go-cv"
 )
 
 func init() {
 	for i := 0; i < globalDetectParallel; i++ {
 		globalDetect[i] = gocv.DetectInitialize("haar_face_0.xml")
 	}
-
 }
 
 // Global constants for Xray.
@@ -44,10 +43,8 @@ var (
 	globalXrayCertFile = "/etc/ssl/public.crt"
 	globalXrayKeyFile  = "/etc/ssl/private.key"
 	globalDebug        = os.Getenv("DEBUG") != ""
-
-	globalUseGoCV     = true
-	globalDetectMutex [globalDetectParallel]sync.Mutex
-	globalDetect      [globalDetectParallel]unsafe.Pointer
+	globalDetectMutex  [globalDetectParallel]sync.Mutex
+	globalDetect       [globalDetectParallel]unsafe.Pointer
 
 	// List of all other classifiers.
 )

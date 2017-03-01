@@ -21,9 +21,10 @@ package cmd
 
 import (
 	"encoding/json"
-	"github.com/fwessels/go-cv"
-	"github.com/lazywei/go-opencv/opencv"
 	"sync/atomic"
+
+	"github.com/lazywei/go-opencv/opencv"
+	"github.com/minio/go-cv"
 )
 
 func getFacePositions(faces []*opencv.Rect) (facePositions []facePosition) {
@@ -46,12 +47,6 @@ func getFacePositions(faces []*opencv.Rect) (facePositions []facePosition) {
 	return facePositions
 }
 
-func (v *xrayHandlers) findFaces(currFrame *opencv.IplImage) (faces []*opencv.Rect) {
-	// Default haar cascade classifier used for detecting faces.
-	globalHaarCascadeClassifier := opencv.LoadHaarClassifierCascade("haarcascade_frontalface_alt.xml")
-	return globalHaarCascadeClassifier.DetectObjects(currFrame)
-}
-
 type Object struct {
 	Objects []Rectangle
 }
@@ -63,10 +58,9 @@ type Rectangle struct {
 	Right  int
 }
 
-var frame uint64 = 0
+var frame uint64
 
 func (v *xrayHandlers) findSimdFaces(currFrame *opencv.Mat) []*opencv.Rect {
-
 	// Determine which index to use into array of detect structs
 	index := atomic.AddUint64(&frame, 1) % globalDetectParallel
 
@@ -78,7 +72,6 @@ func (v *xrayHandlers) findSimdFaces(currFrame *opencv.Mat) []*opencv.Rect {
 	json.Unmarshal([]byte(jsonObjects), &objs)
 
 	var faces []*opencv.Rect
-
 	for _, obj := range objs.Objects {
 		rect := new(opencv.Rect)
 		rect.Init(obj.Left, obj.Top, obj.Right-obj.Left, obj.Bottom-obj.Top)
