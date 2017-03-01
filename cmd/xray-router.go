@@ -68,6 +68,7 @@ func (v *xrayHandlers) detectObjects(data []byte) {
 		return
 	}
 
+	// Detected faces, decode their positions.
 	faces := v.findSimdFaces(mat)
 	if len(faces) == 0 {
 		v.displayCh <- false
@@ -80,18 +81,16 @@ func (v *xrayHandlers) detectObjects(data []byte) {
 		return
 	}
 
-	// Detected faces, decode their positions.
-	facePositions := getFacePositions(faces)
-	v.displayCh <- len(facePositions) > 0
+	v.displayCh <- len(faces) > 0
 	fo := faceObject{
 		Type:      Human,
-		Positions: facePositions,
+		Positions: faces,
 		Display:   <-v.displayRecvCh,
 	}
 
 	// Zooming happens relative on Android if faces are detected.
 	if fo.Display {
-		switch len(facePositions) {
+		switch len(faces) {
 		case 1:
 			// For single face detection zoom in.
 			fo.Zoom = 1

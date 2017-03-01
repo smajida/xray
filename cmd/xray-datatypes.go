@@ -19,7 +19,7 @@
 
 package cmd
 
-import "github.com/lazywei/go-opencv/opencv"
+import "math"
 
 // Face type..
 type faceType string
@@ -44,11 +44,52 @@ type faceObject struct {
 // of face position in a frame.
 type facePosition struct {
 	// Co-ordinates for drawing rectangle.
-	PT1, PT2 opencv.Point
+	PT1, PT2 Point
 	Scalar   float64
 	// Overally border thickness of the rectangle.
 	Thickness int
 	// Line type of the overlay rectangle.
 	LineType int
 	Shift    int
+}
+
+type Point struct {
+	X int
+	Y int
+}
+
+func (p Point) Add(p2 Point) Point {
+	p.X += p2.X
+	p.Y += p2.Y
+	return p
+}
+
+func (p Point) Sub(p2 Point) Point {
+	p.X -= p2.X
+	p.Y -= p2.Y
+	return p
+}
+
+func (p Point) Radius() float64 {
+	return math.Sqrt(p.RadiusSq())
+}
+
+func (p Point) RadiusSq() float64 {
+	return float64(p.X*p.X + p.Y*p.Y)
+}
+
+func (p Point) Angle() float64 {
+	return math.Atan2(float64(p.Y), float64(p.X))
+}
+
+// ObjectInfo - represents face positions.
+type ObjectInfo struct {
+	Positions []Rectangle
+}
+
+type Rectangle struct {
+	Top    int
+	Left   int
+	Bottom int
+	Right  int
 }
