@@ -19,8 +19,6 @@
 
 package cmd
 
-import "math"
-
 // Face type..
 type faceType string
 
@@ -53,43 +51,12 @@ type facePosition struct {
 	Shift    int
 }
 
-type Point struct {
-	X int
-	Y int
-}
-
-func (p Point) Add(p2 Point) Point {
-	p.X += p2.X
-	p.Y += p2.Y
-	return p
-}
-
-func (p Point) Sub(p2 Point) Point {
-	p.X -= p2.X
-	p.Y -= p2.Y
-	return p
-}
-
-func (p Point) Radius() float64 {
-	return math.Sqrt(p.RadiusSq())
-}
-
-func (p Point) RadiusSq() float64 {
-	return float64(p.X*p.X + p.Y*p.Y)
-}
-
-func (p Point) Angle() float64 {
-	return math.Atan2(float64(p.Y), float64(p.X))
-}
-
 // ObjectInfo - represents face positions.
 type ObjectInfo struct {
-	Positions []Rectangle
-}
-
-type Rectangle struct {
-	Top    int
-	Left   int
-	Bottom int
-	Right  int
+	Objects []struct {
+		Top    int
+		Left   int
+		Bottom int
+		Right  int
+	}
 }

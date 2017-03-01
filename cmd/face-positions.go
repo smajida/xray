@@ -38,10 +38,12 @@ func (v *xrayHandlers) findSimdFaces(currFrame *opencv.Mat) []facePosition {
 	globalDetectMutex[index].Unlock()
 
 	var objInfo ObjectInfo
-	json.Unmarshal([]byte(jsonObjects), &objInfo)
+	if err := json.Unmarshal([]byte(jsonObjects), &objInfo); err != nil {
+		panic(err)
+	}
 
 	var facePositions []facePosition
-	for _, pos := range objInfo.Positions {
+	for _, pos := range objInfo.Objects {
 		facePositions = append(facePositions, facePosition{
 			PT1: Point{
 				X: pos.Right,

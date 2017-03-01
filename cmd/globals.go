@@ -29,7 +29,11 @@ import (
 
 func init() {
 	for i := 0; i < globalDetectParallel; i++ {
-		globalDetect[i] = gocv.DetectInitialize("haar_face_0.xml")
+		if globalIsLBP {
+			globalDetect[i] = gocv.DetectInitialize(globalLBPCascadeFile)
+		} else {
+			globalDetect[i] = gocv.DetectInitialize(globalHaarCascadeFile)
+		}
 	}
 }
 
@@ -42,9 +46,14 @@ const (
 var (
 	globalXrayCertFile = "/etc/ssl/public.crt"
 	globalXrayKeyFile  = "/etc/ssl/private.key"
-	globalDebug        = os.Getenv("DEBUG") != ""
-	globalDetectMutex  [globalDetectParallel]sync.Mutex
-	globalDetect       [globalDetectParallel]unsafe.Pointer
 
+	globalDebug = os.Getenv("DEBUG") != ""
+	globalIsLBP = os.Getenv("LBP_CASCADE") != ""
+
+	globalDetectMutex [globalDetectParallel]sync.Mutex
+	globalDetect      [globalDetectParallel]unsafe.Pointer
+
+	globalHaarCascadeFile = "haar_face_0.xml"
+	globalLBPCascadeFile  = "lbp_face.xml"
 	// List of all other classifiers.
 )
