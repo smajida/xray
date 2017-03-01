@@ -1,4 +1,5 @@
 GOPATH := $(shell go env GOPATH)
+SIMD_INSTALL_PREFIX := "/tmp/simd"
 
 all: install
 
@@ -14,7 +15,9 @@ getdeps: checks
 	@echo "Installing misspell:" && go get -u github.com/client9/misspell/cmd/misspell
 	@echo "Installing ineffassign:" && go get -u github.com/gordonklaus/ineffassign
 	@echo "Installing Simd:" && cd contrib/Simd && \
-		cmake . -DCMAKE_INSTALL_PREFIX:PATH=/tmp/simd -DTOOLCHAIN="" -DTARGET="" && make -j8 install
+		cmake . -DCMAKE_INSTALL_PREFIX:PATH=$(SIMD_INSTALL_PREFIX) \
+		-DTOOLCHAIN="" -DTARGET="" && make -j8 install
+	@echo "Installing gocv:" && PKG_CONFIG_PATH=$(SIMD_INSTALL_PREFIX) go get -u github.com/minio/go-cv
 
 verifiers: vet fmt lint cyclo spelling
 
@@ -49,7 +52,8 @@ spelling:
 
 gomake-all: build
 	@echo "Installing xray:"
-	@go install -v
+	@PKG_CONFIG_PATH=$(SIMD_INSTALL_PREFIX) go install -v
+	@rm -rf /tmp/simd
 
 pkg-add:
 	${GOPATH}/bin/govendor add $(PKG)

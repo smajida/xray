@@ -11,3 +11,5 @@
 xray
 *~
 client-example
+contrib/Simd/Test
+contrib/Simd/install_manifest.txt
