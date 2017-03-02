@@ -19,26 +19,14 @@
 
 package cmd
 
-import "math"
+import (
+	"image"
+	"math"
+)
 
 // Point represents - 2D points specified by its coordinates x and y.
 type Point struct {
-	X int
-	Y int
-}
-
-// Add a new point to and moves the points to newer x and y co-ordinates.
-func (p Point) Add(p2 Point) Point {
-	p.X += p2.X
-	p.Y += p2.Y
-	return p
-}
-
-// Sub remove a points move to a newer x and y co-ordinates.
-func (p Point) Sub(p2 Point) Point {
-	p.X -= p2.X
-	p.Y -= p2.Y
-	return p
+	image.Point
 }
 
 // Radius - calculate the radius between the points.
