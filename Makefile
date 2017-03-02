@@ -14,8 +14,10 @@ getdeps: checks
 	@echo "Installing deadcode:" && go get -u github.com/remyoudompheng/go-misc/deadcode
 	@echo "Installing misspell:" && go get -u github.com/client9/misspell/cmd/misspell
 	@echo "Installing ineffassign:" && go get -u github.com/gordonklaus/ineffassign
-	@echo "Installing Simd:" && cd contrib/Simd && \
-		cmake . -DCMAKE_INSTALL_PREFIX:PATH=$(SIMD_INSTALL_PREFIX) \
+	@echo "Installing Simd:" && rm -rf /tmp/simd contrib/Simd/cmake-build && \
+	        mkdir -p contrib/Simd/cmake-build && \
+	        cd contrib/Simd/cmake-build && \
+		cmake ../ -DCMAKE_INSTALL_PREFIX:PATH=$(SIMD_INSTALL_PREFIX) \
 		-DTOOLCHAIN="" -DTARGET="" && make -j8 install
 	@echo "Installing gocv:" && PKG_CONFIG_PATH=$(SIMD_INSTALL_PREFIX)/lib/pkgconfig go get -u github.com/minio/go-cv
 
@@ -53,7 +55,6 @@ spelling:
 gomake-all: build
 	@echo "Installing xray:"
 	@PKG_CONFIG_PATH=$(SIMD_INSTALL_PREFIX)/lib/pkgconfig go install -v
-	@rm -rf /tmp/simd
 
 pkg-add:
 	${GOPATH}/bin/govendor add $(PKG)
@@ -73,3 +74,5 @@ clean:
 	@echo "Cleaning up all the generated files:"
 	@find . -name '*.test' | xargs rm -fv
 	@rm -rf release xray
+	@rm -rf $(SIMD_INSTALL_PREFIX)
+	@rm -rf contrib/Simd/cmake-build

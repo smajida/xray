@@ -55,8 +55,9 @@ func (v *xrayHandlers) detectObjects(data []byte) {
 		}
 	}()
 
-	mat := gocv.DecodeImageMemM(data)
-	if mat == nil {
+	img, err := gocv.DecodeImageMem(data)
+	if err != nil {
+		errorIf(err, "Unable to decode incoming image")
 		v.displayCh <- false
 		fo := faceObject{
 			Type:    Unknown,
@@ -64,12 +65,11 @@ func (v *xrayHandlers) detectObjects(data []byte) {
 			Zoom:    0,
 		}
 		v.clntRespCh <- fo
-		errorIf(errInvalidImage, "Unable to decode incoming image")
 		return
 	}
 
 	// Detected faces, decode their positions.
-	faces := v.findSimdFaces(mat)
+	faces := v.findSimdFaces(img)
 	if len(faces) == 0 {
 		v.displayCh <- false
 		fo := faceObject{

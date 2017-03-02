@@ -21,15 +21,15 @@ package cmd
 
 import (
 	"encoding/json"
+	"image"
 	"sync/atomic"
 
-	"github.com/lazywei/go-opencv/opencv"
 	"github.com/minio/go-cv"
 )
 
 var frame uint64
 
-func (v *xrayHandlers) findSimdFaces(currFrame *opencv.Mat) []facePosition {
+func (v *xrayHandlers) findSimdFaces(currFrame *image.RGBA) []facePosition {
 	// Determine which index to use into array of detect structs
 	index := atomic.AddUint64(&frame, 1) % globalDetectParallel
 
@@ -45,14 +45,8 @@ func (v *xrayHandlers) findSimdFaces(currFrame *opencv.Mat) []facePosition {
 	var facePositions []facePosition
 	for _, pos := range objInfo.Objects {
 		facePositions = append(facePositions, facePosition{
-			PT1: Point{
-				X: pos.Right,
-				Y: pos.Top,
-			},
-			PT2: Point{
-				X: pos.Left,
-				Y: pos.Bottom,
-			},
+			PT1:       Point{image.Pt(pos.Right, pos.Top)},
+			PT2:       Point{image.Pt(pos.Left, pos.Bottom)},
 			Scalar:    255.0,
 			Thickness: 3, // Border thickness defaulted to '3'.
 			LineType:  1,
