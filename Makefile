@@ -17,7 +17,7 @@ getdeps: checks
 	@echo "Installing Simd:" && cd contrib/Simd && \
 		cmake . -DCMAKE_INSTALL_PREFIX:PATH=$(SIMD_INSTALL_PREFIX) \
 		-DTOOLCHAIN="" -DTARGET="" && make -j8 install
-	@echo "Installing gocv:" && PKG_CONFIG_PATH=$(SIMD_INSTALL_PREFIX) go get -u github.com/minio/go-cv
+	@echo "Installing gocv:" && PKG_CONFIG_PATH=$(SIMD_INSTALL_PREFIX)/lib/pkgconfig go get -u github.com/minio/go-cv
 
 verifiers: vet fmt lint cyclo spelling
 
@@ -52,7 +52,7 @@ spelling:
 
 gomake-all: build
 	@echo "Installing xray:"
-	@PKG_CONFIG_PATH=$(SIMD_INSTALL_PREFIX) go install -v
+	@PKG_CONFIG_PATH=$(SIMD_INSTALL_PREFIX)/lib/pkgconfig go install -v
 	@rm -rf /tmp/simd
 
 pkg-add:
