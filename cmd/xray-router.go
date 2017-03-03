@@ -24,7 +24,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"sync"
-
+	"github.com/minio/minio-go"
 	router "github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/minio/go-cv"
@@ -32,6 +32,9 @@ import (
 
 type xrayHandlers struct {
 	sync.RWMutex
+
+	// Object Storage handler.
+	minioClient *minio.Client
 
 	// Used for calculating difference.
 	prevSR sensorRecord
@@ -80,6 +83,8 @@ func (v *xrayHandlers) detectObjects(data []byte) {
 		v.clntRespCh <- fo
 		return
 	}
+	// Save frames to object storage server whenever faces are detected.
+	go v.saveObjects(data)
 
 	v.displayCh <- len(faces) > 0
 	fo := faceObject{
@@ -174,11 +179,14 @@ func (v *xrayHandlers) Detect(w http.ResponseWriter, r *http.Request) {
 }
 
 // Initialize a new xray handlers.
-func newXRayHandlers() *xrayHandlers {
+func newXRayHandlers(clnt *minio.Client) *xrayHandlers {
 	displayCh := make(chan bool)
+
+	
 	return &xrayHandlers{
 		clntRespCh:    make(chan interface{}, 15000),
 		displayCh:     displayCh,
+		minioClient:   clnt,
 		displayRecvCh: displayMemoryRoutine(displayCh),
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
@@ -188,6 +196,7 @@ func newXRayHandlers() *xrayHandlers {
 	}
 }
 
+
 // Configure xray handler.
 func configureXrayHandler(mux *router.Router) http.Handler {
 	registerXRayRouter(mux)
@@ -196,10 +205,48 @@ func configureXrayHandler(mux *router.Router) http.Handler {
 	return mux
 }
 
+// Create a minio client to play.minio.io and make a bucket.
+func newMinioClient() (*minio.Client, error) {
+    endpoint := "play.minio.io:9000"
+    accessKeyID := "Q3AM3UQ867SPQQA43P2F"
+    secretAccessKey := "zuf+tfteSlswRu7BJ86wekitnifILbZam1KYY3TG"
+    useSSL := true
+    
+    // Initialize minio client object.
+    minioClient, err := minio.New(endpoint, accessKeyID, secretAccessKey, useSSL)
+    if err != nil {
+    	return nil, err
+    }
+    
+    // Make a new bucked called alice.
+    bucketName := "alice"
+    location := "us-east-1"
+
+ 	// Check to see if we already own this bucket (which happens if you run this twice)
+    exists, err := minioClient.BucketExists(bucketName)
+    if err != nil {
+    	return nil, err
+    }
+    if !exists {
+    	  err = minioClient.MakeBucket(bucketName, location)
+    	  if err != nil {
+    	  		return nil, err
+    	  }
+    }
+    return minioClient, nil
+
+
+}
 // Register xray router.
 func registerXRayRouter(mux *router.Router) {
+	// 
+	clnt, err := newMinioClient()
+	if err != nil {
+		panic(err)
+	}
+
 	// Initialize xray handlers.
-	xray := newXRayHandlers()
+	xray := newXRayHandlers(clnt)
 
 	// xray Router
 	xrayRouter := mux.NewRoute().PathPrefix("/").Subrouter()
