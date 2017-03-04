@@ -44,13 +44,15 @@ To do this you must change appropriate property (Configuration Type) of **Simd**
 To build the library and test application for Linux 32/64 you need to use CMake build systems.
 Files of CMake build systems are placed in the top level directory:
 
-The library can be built for x86/x64, PowerPC and ARM platforms with using of G++ or Clang compilers.
+`simd/`
+	
+The library can be built for x86/x64, PowerPC(64) and ARM(32/64) platforms with using of G++ or Clang compilers.
 With using of native compiler (g++) for current platform it is simple:
 
 ```
 mkdir cmake-build; cd cmake-build;
 cmake ../ -DTOOLCHAIN="" -DTARGET=""
-make install
+make -j4 install
 ```
 
 To build the library for PowePC and ARM platforms you can also use toolchain for cross compilation.
@@ -59,15 +61,23 @@ There is an example of using for PowerPC:
 ```
 mkdir cmake-build; cd cmake-build;
 cmake ../ -DTOOLCHAIN="/path_to_your_toolchain/usr/bin/powerpc-linux-g++" -DTARGET="ppc64" -DCMAKE_BUILD_TYPE="Release"
-make install
+make -j4 install
 ```
 
-And for ARM:
+For ARM (32 bit):
 
 ```
 mkdir cmake-build; cd cmake-build;
 cmake ../ -DTOOLCHAIN="/path_to_your_toolchain/usr/bin/arm-linux-gnueabihf-g++" -DTARGET="arm" -DCMAKE_BUILD_TYPE="Release"
-make install
+make -j4 install
+```
+
+And for ARM (64 bit):
+
+```
+mkdir cmake-build; cd cmake-build;
+cmake ../ -DTOOLCHAIN="/path_to_your_toolchain/usr/bin/aarch64-linux-gnu-g++" -DTARGET="aarch64" -DCMAKE_BUILD_TYPE="Release"
+make -j4 install
 ```
 
 As result the library and the test application will be built in the current directory.
