@@ -206,9 +206,7 @@ func registerXRayRouter(mux *router.Router) {
 
 	// Initialize minio client.
 	clnt, err := newMinioClient()
-	if err != nil {
-		panic(err)
-	}
+	fatalIf(err, "Unable to initialize minio client")
 
 	// Initialize xray handlers.
 	xray := newXRayHandlers(clnt)

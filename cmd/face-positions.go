@@ -40,7 +40,8 @@ func (v *xrayHandlers) lookupFaces(img *image.RGBA) []facePosition {
 
 	var objInfo ObjectInfo
 	if err := json.Unmarshal([]byte(jsonObjects), &objInfo); err != nil {
-		panic(err)
+		errorIf(err, "Unable to unmarshal json data %s", jsonObjects)
+		return nil
 	}
 
 	var facePositions []facePosition
