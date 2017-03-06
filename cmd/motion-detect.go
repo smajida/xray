@@ -38,7 +38,7 @@ type sensorRecord struct {
 }
 
 // Saves current sensor data for motion detection.
-func (v *xrayHandlers) persistCurrentSensor(sr sensorRecord) {
+func (v *xrayHandlers) persistCurrentSensorR(sr sensorRecord) {
 	v.Lock()
 	v.prevSR = sr
 	v.Unlock()

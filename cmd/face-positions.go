@@ -29,12 +29,13 @@ import (
 
 var frame uint64
 
-func (v *xrayHandlers) findSimdFaces(currFrame *image.RGBA) []facePosition {
+// look for human faces in the incoming image frame.
+func (v *xrayHandlers) lookupFaces(img *image.RGBA) []facePosition {
 	// Determine which index to use into array of detect structs
 	index := atomic.AddUint64(&frame, 1) % globalDetectParallel
 
 	globalDetectMutex[index].Lock()
-	jsonObjects := gocv.DetectObjects(currFrame, globalDetect[index])
+	jsonObjects := gocv.DetectObjects(img, globalDetect[index])
 	globalDetectMutex[index].Unlock()
 
 	var objInfo ObjectInfo
@@ -45,13 +46,15 @@ func (v *xrayHandlers) findSimdFaces(currFrame *image.RGBA) []facePosition {
 	var facePositions []facePosition
 	for _, pos := range objInfo.Objects {
 		facePositions = append(facePositions, facePosition{
-			PT1:       Point{image.Pt(pos.Right, pos.Top)},
-			PT2:       Point{image.Pt(pos.Left, pos.Bottom)},
+			PT1:       Point(image.Pt(pos.Right, pos.Top)),
+			PT2:       Point(image.Pt(pos.Left, pos.Bottom)),
 			Scalar:    255.0,
 			Thickness: 3, // Border thickness defaulted to '3'.
 			LineType:  1,
 			Shift:     0,
 		})
 	}
+
+	// Success.
 	return facePositions
 }

@@ -50,6 +50,8 @@ var (
 	globalDebug = os.Getenv("DEBUG") != ""
 	globalIsLBP = os.Getenv("LBP_CASCADE") != ""
 
+	globalMinioClntConfig = minioConfig{}
+
 	globalDetectMutex [globalDetectParallel]sync.Mutex
 	globalDetect      [globalDetectParallel]unsafe.Pointer
 

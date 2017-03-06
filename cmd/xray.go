@@ -51,20 +51,25 @@ var (
 
 // Help template for xray.
 var xrayHelpTemplate = `NAME:
-  {{.Name}} - {{.Usage}}
+  {{.HelpName}}
 
 DESCRIPTION:
   {{.Description}}
 
 USAGE:
-  xray {{if .Flags}}[flags] {{end}}command{{if .Flags}}{{end}} [arguments...]
+  {{.HelpName}} {{if .Flags}}[FLAGS] {{end}}
 
+ENVIRONMENT VARIABLES:
+  CASCADE:
+     LBP_CASCADE: To enable LBP cascade image detector. Defaults to [Haar Cascade].
+{{if .Commands}}
 COMMANDS:
   {{range .Commands}}{{join .Names ", "}}{{ "\t" }}{{.Usage}}
-  {{end}}{{if .Flags}}
+  {{end}}{{end}}{{if .Flags}}
 FLAGS:
   {{range .Flags}}{{.}}
-  {{end}}{{end}}`
+  {{end}}{{end}}
+`
 
 // init - check the environment before main starts
 func init() {
@@ -103,8 +108,8 @@ func registerApp() *cli.App {
 	app := cli.NewApp()
 	app.Name = "xray"
 	app.Version = Version
+	app.HideHelpCommand = true
 	app.Author = "Minio.io"
-	app.Usage = "Wish i had those eyes."
 	app.Description = `Deep learning based object detection for video.`
 	app.Flags = globalFlags
 	app.CustomAppHelpTemplate = xrayHelpTemplate

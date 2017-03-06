@@ -24,10 +24,11 @@ import (
 	"encoding/json"
 	"net/http"
 	"sync"
-	"github.com/minio/minio-go"
+
 	router "github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/minio/go-cv"
+	"github.com/minio/minio-go"
 )
 
 type xrayHandlers struct {
@@ -65,44 +66,37 @@ func (v *xrayHandlers) detectObjects(data []byte) {
 		fo := faceObject{
 			Type:    Unknown,
 			Display: <-v.displayRecvCh,
-			Zoom:    0,
+			Zoom:    -1,
 		}
 		v.clntRespCh <- fo
 		return
 	}
 
 	// Detected faces, decode their positions.
-	faces := v.findSimdFaces(img)
-	if len(faces) == 0 {
+	faces := v.lookupFaces(img)
+	facesDetected := len(faces) > 0
+	if !facesDetected {
 		v.displayCh <- false
 		fo := faceObject{
 			Type:    Unknown,
 			Display: <-v.displayRecvCh,
-			Zoom:    0,
+			Zoom:    -1,
 		}
 		v.clntRespCh <- fo
 		return
 	}
-	// Save frames to object storage server whenever faces are detected.
-	go v.saveObjects(data)
 
-	v.displayCh <- len(faces) > 0
+	// Save frames to object storage server whenever faces are detected.
+	if facesDetected {
+		go v.uploadImageData(data)
+	}
+
+	v.displayCh <- facesDetected
 	fo := faceObject{
 		Type:      Human,
 		Positions: faces,
 		Display:   <-v.displayRecvCh,
-	}
-
-	// Zooming happens relative on Android if faces are detected.
-	if fo.Display {
-		switch len(faces) {
-		case 1:
-			// For single face detection zoom in.
-			fo.Zoom = 1
-		default:
-			// For more than 1 Zoom out for more coverage.
-			fo.Zoom = -1
-		}
+		Zoom:      calculateOptimalZoomFactor(faces, img.Rect),
 	}
 
 	// Send the data to client.
@@ -138,7 +132,9 @@ func (v *xrayHandlers) detectMotion(data []byte) {
 	}
 
 	v.clntRespCh <- fo
-	v.persistCurrentSensor(sr)
+
+	// Save current sendor info, needed to wake up camera.
+	v.persistCurrentSensorR(sr)
 }
 
 // Detect detects metadata about the incoming data.
@@ -148,6 +144,7 @@ func (v *xrayHandlers) Detect(w http.ResponseWriter, r *http.Request) {
 		errorIf(err, "Unable to perform websocket upgrade the request.")
 		return
 	}
+
 	wc := wConn{wconn}
 	defer wc.Close()
 
@@ -174,7 +171,7 @@ func (v *xrayHandlers) Detect(w http.ResponseWriter, r *http.Request) {
 		} else if mt == websocket.BinaryMessage {
 			go v.detectObjects(data)
 		}
-		wc.WriteMessage(websocket.TextMessage, v.clntRespCh)
+		wc.WriteMessage(mt, v.clntRespCh)
 	}
 }
 
@@ -182,7 +179,6 @@ func (v *xrayHandlers) Detect(w http.ResponseWriter, r *http.Request) {
 func newXRayHandlers(clnt *minio.Client) *xrayHandlers {
 	displayCh := make(chan bool)
 
-	
 	return &xrayHandlers{
 		clntRespCh:    make(chan interface{}, 15000),
 		displayCh:     displayCh,
@@ -196,50 +192,19 @@ func newXRayHandlers(clnt *minio.Client) *xrayHandlers {
 	}
 }
 
-
 // Configure xray handler.
 func configureXrayHandler(mux *router.Router) http.Handler {
+	// Register all xray handlers.
 	registerXRayRouter(mux)
 
 	// Register additional routers if any.
 	return mux
 }
 
-// Create a minio client to play.minio.io and make a bucket.
-func newMinioClient() (*minio.Client, error) {
-    endpoint := "play.minio.io:9000"
-    accessKeyID := "Q3AM3UQ867SPQQA43P2F"
-    secretAccessKey := "zuf+tfteSlswRu7BJ86wekitnifILbZam1KYY3TG"
-    useSSL := true
-    
-    // Initialize minio client object.
-    minioClient, err := minio.New(endpoint, accessKeyID, secretAccessKey, useSSL)
-    if err != nil {
-    	return nil, err
-    }
-    
-    // Make a new bucked called alice.
-    bucketName := "alice"
-    location := "us-east-1"
-
- 	// Check to see if we already own this bucket (which happens if you run this twice)
-    exists, err := minioClient.BucketExists(bucketName)
-    if err != nil {
-    	return nil, err
-    }
-    if !exists {
-    	  err = minioClient.MakeBucket(bucketName, location)
-    	  if err != nil {
-    	  		return nil, err
-    	  }
-    }
-    return minioClient, nil
-
-
-}
 // Register xray router.
 func registerXRayRouter(mux *router.Router) {
-	// 
+
+	// Initialize minio client.
 	clnt, err := newMinioClient()
 	if err != nil {
 		panic(err)
