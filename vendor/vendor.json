@@ -45,12 +45,6 @@
 			"revisionTime": "2017-03-02T09:59:00Z"
 		},
 		{
-			"checksumSHA1": "X/aGT+JmSFOfJeH1We0jJJ5puKU=",
-			"path": "github.com/minio/minio-go",
-			"revision": "e8b302cd9d3a4b0d97065586415a16a24a98cc85",
-			"revisionTime": "2017-02-20T08:11:51Z"
-		},
-		{
 			"checksumSHA1": "neH34/65OXeKHM/MlV8MbhcdFBc=",
 			"path": "github.com/minio/minio-go/pkg/policy",
 			"revision": "e8b302cd9d3a4b0d97065586415a16a24a98cc85",

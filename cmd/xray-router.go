@@ -28,14 +28,10 @@ import (
 	router "github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/minio/go-cv"
-	"github.com/minio/minio-go"
 )
 
 type xrayHandlers struct {
 	sync.RWMutex
-
-	// Object Storage handler.
-	minioClient *minio.Client
 
 	// Used for calculating difference.
 	prevSR sensorRecord
@@ -84,11 +80,6 @@ func (v *xrayHandlers) detectObjects(data []byte) {
 		}
 		v.clntRespCh <- fo
 		return
-	}
-
-	// Save frames to object storage server whenever faces are detected.
-	if facesDetected {
-		go v.uploadImageData(data)
 	}
 
 	v.displayCh <- facesDetected
@@ -176,13 +167,12 @@ func (v *xrayHandlers) Detect(w http.ResponseWriter, r *http.Request) {
 }
 
 // Initialize a new xray handlers.
-func newXRayHandlers(clnt *minio.Client) *xrayHandlers {
+func newXRayHandlers() *xrayHandlers {
 	displayCh := make(chan bool)
 
 	return &xrayHandlers{
 		clntRespCh:    make(chan interface{}, 15000),
 		displayCh:     displayCh,
-		minioClient:   clnt,
 		displayRecvCh: displayMemoryRoutine(displayCh),
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
@@ -204,12 +194,8 @@ func configureXrayHandler(mux *router.Router) http.Handler {
 // Register xray router.
 func registerXRayRouter(mux *router.Router) {
 
-	// Initialize minio client.
-	clnt, err := newMinioClient()
-	fatalIf(err, "Unable to initialize minio client")
-
 	// Initialize xray handlers.
-	xray := newXRayHandlers(clnt)
+	xray := newXRayHandlers()
 
 	// xray Router
 	xrayRouter := mux.NewRoute().PathPrefix("/").Subrouter()
