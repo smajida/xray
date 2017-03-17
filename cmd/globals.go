@@ -27,16 +27,6 @@ import (
 	"github.com/minio/go-cv"
 )
 
-func init() {
-	for i := 0; i < globalDetectParallel; i++ {
-		if globalIsLBP {
-			globalDetect[i] = gocv.DetectInitialize(globalLBPCascadeFile)
-		} else {
-			globalDetect[i] = gocv.DetectInitialize(globalHaarCascadeFile)
-		}
-	}
-}
-
 // Global constants for Xray.
 const (
 	minGoVersion         = ">= 1.7" // Xray requires at least Go v1.7
@@ -53,7 +43,17 @@ var (
 	globalDetectMutex [globalDetectParallel]sync.Mutex
 	globalDetect      [globalDetectParallel]unsafe.Pointer
 
-	globalHaarCascadeFile = "haar_face_0.xml"
-	globalLBPCascadeFile  = "lbp_face.xml"
+	globalHaarCascadeFile = "cascade/haar_face_0.xml"
+	globalLBPCascadeFile  = "cascade/lbp_face.xml"
 	// List of all other classifiers.
 )
+
+func init() {
+	for i := 0; i < globalDetectParallel; i++ {
+		if globalIsLBP {
+			globalDetect[i] = gocv.DetectInitialize(globalLBPCascadeFile)
+		} else {
+			globalDetect[i] = gocv.DetectInitialize(globalHaarCascadeFile)
+		}
+	}
+}
