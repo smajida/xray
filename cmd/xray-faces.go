@@ -30,7 +30,7 @@ import (
 var frame uint64
 
 // look for human faces in the incoming image frame.
-func (v *xrayHandlers) lookupFaces(img *image.RGBA) []facePosition {
+func (v *xrayHandlers) lookupFaces(img *image.RGBA) []FacePosition {
 	// Determine which index to use into array of detect structs
 	index := atomic.AddUint64(&frame, 1) % globalDetectParallel
 
@@ -38,15 +38,23 @@ func (v *xrayHandlers) lookupFaces(img *image.RGBA) []facePosition {
 	jsonObjects := gocv.DetectObjects(img, globalDetect[index])
 	globalDetectMutex[index].Unlock()
 
-	var objInfo ObjectInfo
+	// ObjectInfo - represents face positions.
+	var objInfo struct {
+		Objects []struct {
+			Top    int
+			Left   int
+			Bottom int
+			Right  int
+		}
+	}
 	if err := json.Unmarshal([]byte(jsonObjects), &objInfo); err != nil {
 		errorIf(err, "Unable to unmarshal json data %s", jsonObjects)
 		return nil
 	}
 
-	var facePositions []facePosition
+	var facePositions []FacePosition
 	for _, pos := range objInfo.Objects {
-		facePositions = append(facePositions, facePosition{
+		facePositions = append(facePositions, FacePosition{
 			PT1:       Point(image.Pt(pos.Right, pos.Top)),
 			PT2:       Point(image.Pt(pos.Left, pos.Bottom)),
 			Scalar:    255.0,

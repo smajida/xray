@@ -29,34 +29,43 @@ const (
 	HumanToddler faceType = "human-toddler"
 )
 
-// Face object contains all the data
-// to be sent back to the client.
-type faceObject struct {
-	Positions []facePosition
-	Type      faceType
-	Display   bool
-	Zoom      int
+// XRayDetectResult - represents the computed
+// metadata by xray server for the incoming image
+// data. Includes face positions, face type, optimal
+// zoom factor, presignedPOST url for the client to
+// save to server.
+type XRayDetectResult struct {
+	// TODO needs to add frame id.
+
+	// Collection of various faces in the incoming image.
+	Positions []FacePosition
+
+	// Type of face, currently only supports "human"
+	Type faceType
+
+	// Should the camera turn itself on.
+	Display bool
+
+	// Optimal zoom factor for the camera.
+	Zoom int
+
+	// Presigned information if any for client
+	// to start upload the frames..
+	Presigned *presignedPOST `json:",omitempty"`
 }
 
-// Represents the spacial rectangular co-ordinates
-// of face position in a frame.
-type facePosition struct {
+// FacePosition Represents the 2D rectangular
+// co-ordinates of face position detected from
+// the incoming frame.
+type FacePosition struct {
 	// Co-ordinates for drawing rectangle.
 	PT1, PT2 Point
 	Scalar   float64
+
 	// Overally border thickness of the rectangle.
 	Thickness int
+
 	// Line type of the overlay rectangle.
 	LineType int
 	Shift    int
-}
-
-// ObjectInfo - represents face positions.
-type ObjectInfo struct {
-	Objects []struct {
-		Top    int
-		Left   int
-		Bottom int
-		Right  int
-	}
 }

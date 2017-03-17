@@ -47,7 +47,7 @@ func (r Rectangle) In(s image.Rectangle, thresholdFactor int) bool {
 // 200 - which would yield '1' zoom factor.
 // 300 - which would yield '2' zoom factor.
 // ... To support more area.
-func calculateOptimalZoomFactor(faces []facePosition, rect image.Rectangle) int {
+func calculateOptimalZoomFactor(faces []FacePosition, rect image.Rectangle) int {
 	var faceRectangles []image.Rectangle
 	for _, facePos := range faces {
 		faceRectangles = append(faceRectangles, image.Rectangle{

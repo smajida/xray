@@ -28,12 +28,16 @@ import (
 	router "github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/minio/go-cv"
+	minio "github.com/minio/minio-go"
 )
 
 type xrayHandlers struct {
 	sync.RWMutex
 
-	// Used for calculating difference.
+	// Object Storage handler.
+	minioClient *minio.Client
+
+	// Used for calculating motion detection.
 	prevSR sensorRecord
 
 	// Represents client response channel, sends client data.
@@ -59,7 +63,7 @@ func (v *xrayHandlers) detectObjects(data []byte) {
 	if err != nil {
 		errorIf(err, "Unable to decode incoming image")
 		v.displayCh <- false
-		fo := faceObject{
+		fo := XRayDetectResult{
 			Type:    Unknown,
 			Display: <-v.displayRecvCh,
 			Zoom:    -1,
@@ -73,7 +77,21 @@ func (v *xrayHandlers) detectObjects(data []byte) {
 	facesDetected := len(faces) > 0
 	if !facesDetected {
 		v.displayCh <- false
-		fo := faceObject{
+		fo := XRayDetectResult{
+			Type:    Unknown,
+			Display: <-v.displayRecvCh,
+			Zoom:    -1,
+		}
+		v.clntRespCh <- fo
+		return
+	}
+
+	// Generate POST presigned URL.
+	pp, err := v.newPresignedURL(getObjectPrefix())
+	if err != nil {
+		errorIf(err, "Unable to generate presigned post policy")
+		v.displayCh <- false
+		fo := XRayDetectResult{
 			Type:    Unknown,
 			Display: <-v.displayRecvCh,
 			Zoom:    -1,
@@ -83,11 +101,12 @@ func (v *xrayHandlers) detectObjects(data []byte) {
 	}
 
 	v.displayCh <- facesDetected
-	fo := faceObject{
+	fo := XRayDetectResult{
 		Type:      Human,
 		Positions: faces,
 		Display:   <-v.displayRecvCh,
 		Zoom:      calculateOptimalZoomFactor(faces, img.Rect),
+		Presigned: pp,
 	}
 
 	// Send the data to client.
@@ -105,7 +124,7 @@ func (v *xrayHandlers) detectMotion(data []byte) {
 	var sr sensorRecord
 	if err := json.Unmarshal(data, &sr); err != nil {
 		v.displayCh <- false
-		fo := faceObject{
+		fo := XRayDetectResult{
 			Type:    Unknown,
 			Display: <-v.displayRecvCh,
 			Zoom:    0,
@@ -116,7 +135,7 @@ func (v *xrayHandlers) detectMotion(data []byte) {
 	}
 
 	v.displayCh <- v.shouldDisplayCamera(sr)
-	fo := faceObject{
+	fo := XRayDetectResult{
 		Type:    Unknown,
 		Display: <-v.displayRecvCh,
 		Zoom:    0,
@@ -167,10 +186,11 @@ func (v *xrayHandlers) Detect(w http.ResponseWriter, r *http.Request) {
 }
 
 // Initialize a new xray handlers.
-func newXRayHandlers() *xrayHandlers {
+func newXRayHandlers(clnt *minio.Client) *xrayHandlers {
 	displayCh := make(chan bool)
 
 	return &xrayHandlers{
+		minioClient:   clnt,
 		clntRespCh:    make(chan interface{}, 15000),
 		displayCh:     displayCh,
 		displayRecvCh: displayMemoryRoutine(displayCh),
@@ -194,8 +214,12 @@ func configureXrayHandler(mux *router.Router) http.Handler {
 // Register xray router.
 func registerXRayRouter(mux *router.Router) {
 
+	// Initialize minio client.
+	clnt, err := newMinioClient()
+	fatalIf(err, "Unable to initialize minio client")
+
 	// Initialize xray handlers.
-	xray := newXRayHandlers()
+	xray := newXRayHandlers(clnt)
 
 	// xray Router
 	xrayRouter := mux.NewRoute().PathPrefix("/").Subrouter()
