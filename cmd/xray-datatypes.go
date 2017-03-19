@@ -51,7 +51,7 @@ type XRayDetectResult struct {
 
 	// Presigned information if any for client
 	// to start upload the frames..
-	Presigned *presignedPOST `json:",omitempty"`
+	Presigned *presignedPOST
 }
 
 // FacePosition Represents the 2D rectangular
