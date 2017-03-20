@@ -22,6 +22,7 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
+	"image"
 	"net/http"
 	"sync"
 
@@ -100,12 +101,19 @@ func (v *xrayHandlers) detectObjects(data []byte) {
 		return
 	}
 
+	var faceRectangles []image.Rectangle
+	for _, facePos := range faces {
+		faceRectangles = append(faceRectangles, image.Rectangle{
+			image.Point(facePos.PT1), image.Point(facePos.PT2),
+		})
+	}
+
 	v.displayCh <- facesDetected
 	fo := XRayDetectResult{
 		Type:      Human,
 		Positions: faces,
 		Display:   <-v.displayRecvCh,
-		Zoom:      calculateOptimalZoomFactor(faces, img.Rect),
+		Zoom:      calculateOptimalZoomFactor(faceRectangles, img.Rect),
 		Presigned: pp,
 	}
 

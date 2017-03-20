@@ -22,7 +22,82 @@ package cmd
 import (
 	"image"
 	"math"
+	"strconv"
 )
+
+type frameStruct struct {
+	Id        string `json:"id"`
+	Format    string `json:"format"`
+	Width     string `json:"width"`
+	Height    string `json:"height"`
+	Rotation  string `json:"rotation"`
+	Timestamp string `json:"timestamp"`
+}
+
+type faceStruct struct {
+	Id           string      `json:"id"`
+	EulerY       string      `json:"eulerY"`
+	EulerZ       string      `json:"eulerZ"`
+	Height       string      `json:"height"`
+	Width        string      `json:"width"`
+	LeftEyeOpen  string      `json:"leftEyeOpen"`
+	RightEyeOpen string      `json:"rightEyeOpen"`
+	Smiling      string      `json:"similing"`
+	FacePt1      pointStruct `json:"facePt1"`
+	FacePt2      pointStruct `json:"facePt2"`
+}
+
+type pointStruct struct {
+	X string `json:"x"`
+	Y string `json:"y"`
+}
+
+type frameRecord struct {
+	Frame frameStruct  `json:"frame"`
+	Faces []faceStruct `json:"faces"`
+}
+
+func (fr *frameRecord) GetFullFrameRect() (image.Rectangle, error) {
+
+	width, err := strconv.Atoi(fr.Frame.Width)
+	if err != nil {
+		return image.Rectangle{}, err
+	}
+	height, err := strconv.Atoi(fr.Frame.Width)
+	if err != nil {
+		return image.Rectangle{}, err
+	}
+
+	return image.Rectangle{image.Point{}, image.Point{X: width, Y: height}}, nil
+}
+
+func (fr *frameRecord) GetFaceRectangles() ([]image.Rectangle, error) {
+
+	var faces []image.Rectangle
+	for _, face := range fr.Faces {
+		x1, err := strconv.ParseFloat(face.FacePt1.X, 64)
+		if err != nil {
+			return []image.Rectangle{}, err
+		}
+		y1, err := strconv.ParseFloat(face.FacePt1.Y, 64)
+		if err != nil {
+			return []image.Rectangle{}, err
+		}
+		x2, err := strconv.ParseFloat(face.FacePt2.X, 64)
+		if err != nil {
+			return []image.Rectangle{}, err
+		}
+		y2, err := strconv.ParseFloat(face.FacePt2.Y, 64)
+		if err != nil {
+			return []image.Rectangle{}, err
+		}
+		faces = append(faces, image.Rectangle{
+			image.Point{X: int(x1), Y: int(y1)}, image.Point{X: int(x2), Y: int(y2)},
+		})
+	}
+
+	return faces, nil
+}
 
 // Rectangle represents custom rectangle implementation, provides
 // additional methods for calculating threshold factors.
@@ -47,16 +122,10 @@ func (r Rectangle) In(s image.Rectangle, thresholdFactor int) bool {
 // 200 - which would yield '1' zoom factor.
 // 300 - which would yield '2' zoom factor.
 // ... To support more area.
-func calculateOptimalZoomFactor(faces []FacePosition, rect image.Rectangle) int {
-	var faceRectangles []image.Rectangle
-	for _, facePos := range faces {
-		faceRectangles = append(faceRectangles, image.Rectangle{
-			image.Point(facePos.PT1), image.Point(facePos.PT2),
-		})
-	}
+func calculateOptimalZoomFactor(faces []image.Rectangle, rect image.Rectangle) int {
 
 	var final image.Rectangle
-	for _, rect := range faceRectangles {
+	for _, rect := range faces {
 		final.Union(rect)
 	}
 
