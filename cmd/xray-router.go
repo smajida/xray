@@ -67,7 +67,7 @@ func (v *xrayHandlers) detectObjects(data []byte) {
 		return
 	}
 
-	imgRect, err := fr.GetFullFrameRect()
+	imgRect, frameID, err := fr.GetFullFrameRect()
 	if err != nil {
 		errorIf(err, "Unable to get image rect")
 		v.clntRespCh <- XrayResult{
@@ -97,6 +97,7 @@ func (v *xrayHandlers) detectObjects(data []byte) {
 
 	// Send the data to client.
 	v.clntRespCh <- XrayResult{
+		FrameID:   frameID,
 		Zoom:      calculateOptimalZoomFactor(faces, imgRect),
 		Presigned: pp,
 	}
@@ -117,11 +118,12 @@ func (v *xrayHandlers) Detect(w http.ResponseWriter, r *http.Request) {
 	for {
 		mt, data, err := wc.ReadMessage()
 		if err != nil {
-			errorIf(err, "Unable to read incoming binary message.")
+			errorIf(err, "Unable to read incoming message.")
 			break
 		}
 
 		if mt == websocket.BinaryMessage {
+			errorIf(err, "Invalid message type.")
 			continue
 		}
 

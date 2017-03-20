@@ -57,19 +57,26 @@ type frameRecord struct {
 	Faces []faceStruct `json:"faces"`
 }
 
-func (fr *frameRecord) GetFullFrameRect() (image.Rectangle, error) {
+// Extracts full frame rectangle from the incoming frame record.
+func (fr *frameRecord) GetFullFrameRect() (image.Rectangle, int, error) {
 	width, err := strconv.Atoi(fr.Frame.Width)
 	if err != nil {
-		return image.Rectangle{}, err
+		return image.Rectangle{}, 0, err
 	}
 	height, err := strconv.Atoi(fr.Frame.Width)
 	if err != nil {
-		return image.Rectangle{}, err
+		return image.Rectangle{}, 0, err
 	}
 
-	return image.Rectangle{image.Point{}, image.Point{X: width, Y: height}}, nil
+	frameID, err := strconv.Atoi(fr.Frame.ID)
+	if err != nil {
+		return image.Rectangle{}, 0, err
+	}
+
+	return image.Rectangle{image.Point{}, image.Point{X: width, Y: height}}, frameID, nil
 }
 
+// Extracts all the face rectangles from the incoming frame record.
 func (fr *frameRecord) GetFaceRectangles() ([]image.Rectangle, error) {
 	var faces []image.Rectangle
 	for _, face := range fr.Faces {
@@ -121,7 +128,6 @@ func (r Rectangle) In(s image.Rectangle, thresholdFactor int) bool {
 // 300 - which would yield '2' zoom factor.
 // ... To support more area.
 func calculateOptimalZoomFactor(faces []image.Rectangle, rect image.Rectangle) int {
-
 	var final image.Rectangle
 	for _, rect := range faces {
 		final = final.Union(rect)

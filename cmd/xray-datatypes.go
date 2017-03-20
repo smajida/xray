@@ -23,7 +23,7 @@ package cmd
 // presigned post policy.
 type XrayResult struct {
 	// Frame id
-	FrameID int
+	FrameID int `json:"FrameId"`
 
 	// Optimal zoom factor for the camera.
 	Zoom int
