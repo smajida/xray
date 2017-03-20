@@ -19,32 +19,11 @@
 
 package cmd
 
-// Face type..
-type faceType string
-
-// List of face types.
-const (
-	Unknown      faceType = "unknown"
-	Human        faceType = "human"
-	HumanToddler faceType = "human-toddler"
-)
-
-// XRayDetectResult - represents the computed
-// metadata by xray server for the incoming image
-// data. Includes face positions, face type, optimal
-// zoom factor, presignedPOST url for the client to
-// save to server.
-type XRayDetectResult struct {
-	// TODO needs to add frame id.
-
-	// Collection of various faces in the incoming image.
-	Positions []FacePosition
-
-	// Type of face, currently only supports "human"
-	Type faceType
-
-	// Should the camera turn itself on.
-	Display bool
+// XrayResult - represents zoom factor with
+// presigned post policy.
+type XrayResult struct {
+	// Frame id
+	FrameID int
 
 	// Optimal zoom factor for the camera.
 	Zoom int
@@ -52,20 +31,4 @@ type XRayDetectResult struct {
 	// Presigned information if any for client
 	// to start upload the frames..
 	Presigned *presignedPOST
-}
-
-// FacePosition Represents the 2D rectangular
-// co-ordinates of face position detected from
-// the incoming frame.
-type FacePosition struct {
-	// Co-ordinates for drawing rectangle.
-	PT1, PT2 Point
-	Scalar   float64
-
-	// Overally border thickness of the rectangle.
-	Thickness int
-
-	// Line type of the overlay rectangle.
-	LineType int
-	Shift    int
 }

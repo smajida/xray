@@ -26,7 +26,7 @@ import (
 )
 
 type frameStruct struct {
-	Id        string `json:"id"`
+	ID        string `json:"id"`
 	Format    string `json:"format"`
 	Width     string `json:"width"`
 	Height    string `json:"height"`
@@ -35,7 +35,7 @@ type frameStruct struct {
 }
 
 type faceStruct struct {
-	Id           string      `json:"id"`
+	ID           string      `json:"id"`
 	EulerY       string      `json:"eulerY"`
 	EulerZ       string      `json:"eulerZ"`
 	Height       string      `json:"height"`
@@ -58,7 +58,6 @@ type frameRecord struct {
 }
 
 func (fr *frameRecord) GetFullFrameRect() (image.Rectangle, error) {
-
 	width, err := strconv.Atoi(fr.Frame.Width)
 	if err != nil {
 		return image.Rectangle{}, err
@@ -72,7 +71,6 @@ func (fr *frameRecord) GetFullFrameRect() (image.Rectangle, error) {
 }
 
 func (fr *frameRecord) GetFaceRectangles() ([]image.Rectangle, error) {
-
 	var faces []image.Rectangle
 	for _, face := range fr.Faces {
 		x1, err := strconv.ParseFloat(face.FacePt1.X, 64)

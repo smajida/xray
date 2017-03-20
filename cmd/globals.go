@@ -19,43 +19,16 @@
 
 package cmd
 
-import (
-	"os"
-	"sync"
-	"unsafe"
-
-	"github.com/minio/go-cv"
-)
+import "os"
 
 // Global constants for Xray.
-const (
-	minGoVersion         = ">= 1.7" // Xray requires at least Go v1.7
-	globalDetectParallel = 8
-)
+const minGoVersion = ">= 1.7" // Xray requires at least Go v1.7
 
 var (
 	globalXrayCertFile = "/etc/ssl/public.crt"
 	globalXrayKeyFile  = "/etc/ssl/private.key"
 
 	globalDebug = os.Getenv("DEBUG") != ""
-	globalIsLBP = os.Getenv("LBP_CASCADE") != ""
 
 	globalMinioClntConfig = minioConfig{}
-
-	globalDetectMutex [globalDetectParallel]sync.Mutex
-	globalDetect      [globalDetectParallel]unsafe.Pointer
-
-	globalHaarCascadeFile = "cascade/haar_face_0.xml"
-	globalLBPCascadeFile  = "cascade/lbp_face.xml"
-	// List of all other classifiers.
 )
-
-func init() {
-	for i := 0; i < globalDetectParallel; i++ {
-		if globalIsLBP {
-			globalDetect[i] = gocv.DetectInitialize(globalLBPCascadeFile)
-		} else {
-			globalDetect[i] = gocv.DetectInitialize(globalHaarCascadeFile)
-		}
-	}
-}

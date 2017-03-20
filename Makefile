@@ -1,5 +1,5 @@
 GOPATH := $(shell go env GOPATH)
-SIMD_INSTALL_PREFIX := "/tmp/simd"
+#SIMD_INSTALL_PREFIX := "/tmp/simd"
 
 all: install
 
@@ -14,12 +14,12 @@ getdeps: checks
 	@echo "Installing deadcode:" && go get -u github.com/remyoudompheng/go-misc/deadcode
 	@echo "Installing misspell:" && go get -u github.com/client9/misspell/cmd/misspell
 	@echo "Installing ineffassign:" && go get -u github.com/gordonklaus/ineffassign
-	@echo "Installing Simd:" && rm -rf /tmp/simd contrib/Simd/cmake-build && \
+#	@echo "Installing Simd:" && rm -rf /tmp/simd contrib/Simd/cmake-build && \
 	        mkdir -p contrib/Simd/cmake-build && \
 	        cd contrib/Simd/cmake-build && \
 		cmake ../ -DCMAKE_INSTALL_PREFIX:PATH=$(SIMD_INSTALL_PREFIX) \
 		-DTOOLCHAIN="" -DTARGET="" && make -j8 install
-	@echo "Installing gocv:" && PKG_CONFIG_PATH=$(SIMD_INSTALL_PREFIX)/lib/pkgconfig go get -u github.com/minio/go-cv
+#	@echo "Installing gocv:" && PKG_CONFIG_PATH=$(SIMD_INSTALL_PREFIX)/lib/pkgconfig go get -u github.com/minio/go-cv
 
 verifiers: vet fmt lint cyclo spelling
 

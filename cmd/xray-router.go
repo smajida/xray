@@ -22,13 +22,11 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
-	"image"
 	"net/http"
 	"sync"
 
 	router "github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
-	"github.com/minio/go-cv"
 	minio "github.com/minio/minio-go"
 )
 
@@ -60,30 +58,30 @@ func (v *xrayHandlers) detectObjects(data []byte) {
 		}
 	}()
 
-	img, err := gocv.DecodeImageMem(data)
-	if err != nil {
-		errorIf(err, "Unable to decode incoming image")
-		v.displayCh <- false
-		fo := XRayDetectResult{
-			Type:    Unknown,
-			Display: <-v.displayRecvCh,
-			Zoom:    -1,
+	var fr frameRecord
+	if err := json.Unmarshal(data, &fr); err != nil {
+		errorIf(err, "Unable to unmarshal incoming frame record")
+		v.clntRespCh <- XrayResult{
+			Zoom: -1,
 		}
-		v.clntRespCh <- fo
 		return
 	}
 
-	// Detected faces, decode their positions.
-	faces := v.lookupFaces(img)
-	facesDetected := len(faces) > 0
-	if !facesDetected {
-		v.displayCh <- false
-		fo := XRayDetectResult{
-			Type:    Unknown,
-			Display: <-v.displayRecvCh,
-			Zoom:    -1,
+	imgRect, err := fr.GetFullFrameRect()
+	if err != nil {
+		errorIf(err, "Unable to get image rect")
+		v.clntRespCh <- XrayResult{
+			Zoom: -1,
 		}
-		v.clntRespCh <- fo
+		return
+	}
+
+	faces, err := fr.GetFaceRectangles()
+	if err != nil {
+		errorIf(err, "Unable to get face rectangles")
+		v.clntRespCh <- XrayResult{
+			Zoom: -1,
+		}
 		return
 	}
 
@@ -91,68 +89,17 @@ func (v *xrayHandlers) detectObjects(data []byte) {
 	pp, err := v.newPresignedURL(getObjectPrefix())
 	if err != nil {
 		errorIf(err, "Unable to generate presigned post policy")
-		v.displayCh <- false
-		fo := XRayDetectResult{
-			Type:    Unknown,
-			Display: <-v.displayRecvCh,
-			Zoom:    -1,
+		v.clntRespCh <- XrayResult{
+			Zoom: -1,
 		}
-		v.clntRespCh <- fo
 		return
-	}
-
-	var faceRectangles []image.Rectangle
-	for _, facePos := range faces {
-		faceRectangles = append(faceRectangles, image.Rectangle{
-			image.Point(facePos.PT1), image.Point(facePos.PT2),
-		})
-	}
-
-	v.displayCh <- facesDetected
-	fo := XRayDetectResult{
-		Type:      Human,
-		Positions: faces,
-		Display:   <-v.displayRecvCh,
-		Zoom:      calculateOptimalZoomFactor(faceRectangles, img.Rect),
-		Presigned: pp,
 	}
 
 	// Send the data to client.
-	v.clntRespCh <- fo
-}
-
-// Detects motion based on sensor difference.
-func (v *xrayHandlers) detectMotion(data []byte) {
-	defer func() {
-		if r := recover(); r != nil {
-			errorIf(r.(error), "Recovered from a panic in detectMotion")
-		}
-	}()
-
-	var sr sensorRecord
-	if err := json.Unmarshal(data, &sr); err != nil {
-		v.displayCh <- false
-		fo := XRayDetectResult{
-			Type:    Unknown,
-			Display: <-v.displayRecvCh,
-			Zoom:    0,
-		}
-		v.clntRespCh <- fo
-		errorIf(err, "Unable to extract sensor record %s", string(data))
-		return
+	v.clntRespCh <- XrayResult{
+		Zoom:      calculateOptimalZoomFactor(faces, imgRect),
+		Presigned: pp,
 	}
-
-	v.displayCh <- v.shouldDisplayCamera(sr)
-	fo := XRayDetectResult{
-		Type:    Unknown,
-		Display: <-v.displayRecvCh,
-		Zoom:    0,
-	}
-
-	v.clntRespCh <- fo
-
-	// Save current sendor info, needed to wake up camera.
-	v.persistCurrentSensorR(sr)
 }
 
 // Detect detects metadata about the incoming data.
@@ -174,34 +121,25 @@ func (v *xrayHandlers) Detect(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 
-		if len(data) == 0 {
+		if mt == websocket.BinaryMessage {
 			continue
 		}
 
-		// Support if client sent a text message, most
-		// probably its sensor or location metadata.
-		if mt == websocket.TextMessage {
-			// Ignore all other forms of incoming data.
-			if !bytes.Contains(data, []byte("sensorName")) {
-				continue
-			}
-			go v.detectMotion(data)
-		} else if mt == websocket.BinaryMessage {
-			go v.detectObjects(data)
+		// Ignore all other forms of incoming data.
+		if bytes.Contains(data, []byte("sensorName")) {
+			continue
 		}
+
+		go v.detectObjects(data)
 		wc.WriteMessage(websocket.TextMessage, v.clntRespCh)
 	}
 }
 
 // Initialize a new xray handlers.
 func newXRayHandlers(clnt *minio.Client) *xrayHandlers {
-	displayCh := make(chan bool)
-
 	return &xrayHandlers{
-		minioClient:   clnt,
-		clntRespCh:    make(chan interface{}, 15000),
-		displayCh:     displayCh,
-		displayRecvCh: displayMemoryRoutine(displayCh),
+		minioClient: clnt,
+		clntRespCh:  make(chan interface{}, 15000),
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
 				return true
