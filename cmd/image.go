@@ -124,15 +124,16 @@ func calculateOptimalZoomFactor(faces []image.Rectangle, rect image.Rectangle) i
 
 	var final image.Rectangle
 	for _, rect := range faces {
-		final.Union(rect)
+		final = final.Union(rect)
 	}
 
 	if final.Empty() {
 		return -1
 	}
 
+	r := Rectangle{final.Max, final.Min}
+
 	for i, ifactor := range []int{100, 200, 300} {
-		r := Rectangle{final.Max, final.Min}
 		if r.In(rect, ifactor) {
 			return i
 		}
