@@ -66,7 +66,7 @@ func testArray(t *testing.T, jsonarray []string) {
 			t.Errorf("TestZoomFactor(): failed to unmarshal JSON: %v", err)
 		}
 
-		boundingBox, err := fr.GetFullFrameRect()
+		boundingBox, _, err := fr.GetFullFrameRect()
 		if err != nil {
 			t.Errorf("TestZoomFactor() error: %v", err)
 		}
