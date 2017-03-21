@@ -108,44 +108,48 @@ func (fr *frameRecord) GetFaceRectangles() ([]image.Rectangle, error) {
 // additional methods for calculating threshold factors.
 type Rectangle image.Rectangle
 
-// In reports whether every point in r is in s, under a given threshold factor.
-func (r Rectangle) In(s image.Rectangle, thresholdFactor int) bool {
-	// Note that r.Max is an exclusive bound for r, so that r.In(s)
-	// does not require that r.Max.In(s).
-	return s.Min.X-r.Min.X <= thresholdFactor && r.Max.X-s.Max.X <= thresholdFactor &&
-		s.Min.Y-r.Min.Y <= thresholdFactor && r.Max.Y-s.Max.Y <= thresholdFactor
-}
 
-// Algorithm used here is pretty simple union of face rectangles is verified
-// if it is sufficiently visible under the incoming frame, if the image is
-// sufficiently visible then the optimal zoom factor is calculated based on
-// the available room for the individual maximal and minimum points of
-// all the faces in a given frame.
-//
-// Currently the supported threshold point difference are
-// 100 - which would yield '0' zoom factor.
-// 200 - which would yield '1' zoom factor.
-// 300 - which would yield '2' zoom factor.
-// ... To support more area.
-func calculateOptimalZoomFactor(faces []image.Rectangle, rect image.Rectangle) int {
+const zoomOutBorderSize = 50
+const nozoomBorderSize = 75
+
+// Algorithm used here is pretty simple union of face rectangles is fitted
+// into respectively smaller boxes, smallest box will return back the hightest
+// zoom factor
+func calculateOptimalZoomFactor(rects []image.Rectangle, boundingBox image.Rectangle) int {
+
 	var final image.Rectangle
-	for _, rect := range faces {
+	for _, rect := range rects {
 		final = final.Union(rect)
 	}
 
 	if final.Empty() {
+		return 0
+	}
+
+	nozoomBox := boundingBox.Inset(zoomOutBorderSize)
+	zoomInBox1 := nozoomBox.Inset(nozoomBorderSize)
+
+	inset := 0
+	if zoomInBox1.Size().X < zoomInBox1.Size().Y {
+		inset = zoomInBox1.Size().X / 4 / 2
+	} else {
+		inset = zoomInBox1.Size().Y / 4 / 2
+	}
+
+	zoomInBox2 := zoomInBox1.Inset(inset)
+	zoomInBox3 := zoomInBox2.Inset(inset)
+
+	if final.In(zoomInBox3) {
+		return 3
+	} else if final.In(zoomInBox2) {
+		return 2
+	} else if final.In(zoomInBox1) {
+		return 1
+	} else if final.In(nozoomBox) {
+		return 0
+	} else {
 		return -1
 	}
-
-	r := Rectangle{final.Max, final.Min}
-
-	for i, ifactor := range []int{100, 200, 300} {
-		if r.In(rect, ifactor) {
-			return i
-		}
-	}
-
-	return -1
 }
 
 // Point represents - 2D points specified by its coordinates x and y.

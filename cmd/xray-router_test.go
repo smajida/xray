@@ -46,7 +46,7 @@ var jsonZoomTwoFaces = []string{`{ "frame": { "id": "1", "format": "17", "width"
   "faces": [ { "id": "1", "eulerY": "0.0", "eulerZ": "0.0", "width": "250", "height": "250", "leftEyeOpen": "-1.0", "rightEyeOpen": "-1.0", "similing": "0.0", "facePt1": { "x": "255", "y": "235"  }, "facePt2": {  "x": "505",  "y": "485" } },
 			 { "id": "2", "eulerY": "0.0", "eulerZ": "0.0", "width": "250", "height": "250", "leftEyeOpen": "-1.0", "rightEyeOpen": "-1.0", "similing": "0.0", "facePt1": { "x": "455", "y": "235"  }, "facePt2": {  "x": "705",  "y": "485" } } ] }`}
 
-func TestZoomFactor(t *testing.T) {
+func TestParseJSON(t *testing.T) {
 
 	testArray(t, []string{jsontext})
 
