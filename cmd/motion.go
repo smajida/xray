@@ -28,28 +28,22 @@ import (
 func max(a, b int) int {
 	if a > b {
 		return a
-	} else {
-		return b
 	}
+	return b
 }
 func min(a, b int) int {
 	if a < b {
 		return a
-	} else {
-		return b
 	}
+	return b
 }
 
-// Return "XOR" difference between two rectangles
+// XorRects returns "XOR" difference between two rectangles
 func XorRects(r, s image.Rectangle) []image.Rectangle {
 
 	if r.Intersect(s).Empty() {
-		// In case there is no overlap at all, just return largest rectangle
-		if r.Dx()*r.Dy() > s.Dx()*s.Dy() {
-			return []image.Rectangle{r}
-		} else {
-			return []image.Rectangle{s}
-		}
+		// In case there is no overlap at all, return both rectangles
+		return []image.Rectangle{r, s}
 	}
 
 	// Else determine difference
@@ -95,7 +89,7 @@ func XorRects(r, s image.Rectangle) []image.Rectangle {
 	return result
 }
 
-type MotionRecorder struct {
+type motionRecorder struct {
 	prevFrame          *frameRecord
 	frameMotions       []float64
 	snapshotTimestamps []time.Time
@@ -174,7 +168,7 @@ func analyseBetweenFrames(prev, next *frameRecord) float64 {
 	return result / float64(frame.Dx()*frame.Dy())
 }
 
-func (mr *MotionRecorder) analyze() float64 {
+func (mr *motionRecorder) analyze() float64 {
 
 	result := float64(0.0)
 
@@ -185,21 +179,21 @@ func (mr *MotionRecorder) analyze() float64 {
 	return result
 }
 
-const MaxFrames = 1000 // Maximum number of frames to keep track off
+const maxFrames = 1000 // Maximum number of frames to keep track off
 
-const ThresholdBase = 0.05  // Base value for threshold
-const ThresholdBoost = 0.10 // Maximum boost for threshold when timestamps are taken
+const thresholdBase = 0.05  // Base value for threshold
+const thresholdBoost = 0.10 // Maximum boost for threshold when timestamps are taken
 
-const MaxTimestamps = 10                     // Maximum number of timestamps to keep
-const MinimalTimestampDiff = time.Second * 5 // Minimal difference between timestamps
-const MaxTimestampsAge = time.Second * 30    // Age to remove recorded timestamp from array
+const maxTimestamps = 10                     // Maximum number of timestamps to keep
+const minimalTimestampDiff = time.Second * 5 // Minimal difference between timestamps
+const maxTimestampsAge = time.Second * 30    // Age to remove recorded timestamp from array
 
-func (mr *MotionRecorder) Threshold() float64 {
+func (mr *motionRecorder) Threshold() float64 {
 
 	// Detect older time stamps
 	itime := len(mr.snapshotTimestamps) - 1
 	for ; itime >= 0; itime-- {
-		if time.Since(mr.snapshotTimestamps[itime]) >= MaxTimestampsAge {
+		if time.Since(mr.snapshotTimestamps[itime]) >= maxTimestampsAge {
 			break
 		}
 	} // and remove them
@@ -207,17 +201,17 @@ func (mr *MotionRecorder) Threshold() float64 {
 		mr.snapshotTimestamps = mr.snapshotTimestamps[itime:]
 	}
 
-	return ThresholdBase + ThresholdBoost*float64(len(mr.snapshotTimestamps))/MaxTimestamps
+	return thresholdBase + thresholdBoost *float64(len(mr.snapshotTimestamps))/ maxTimestamps
 }
 
-func (mr *MotionRecorder) Append(fr *frameRecord) {
+func (mr *motionRecorder) Append(fr *frameRecord) {
 
 	if mr.prevFrame != nil {
 
 		diff := analyseBetweenFrames(mr.prevFrame, fr)
 
 		mr.frameMotions = append(mr.frameMotions, diff)
-		if len(mr.frameMotions) > MaxFrames {
+		if len(mr.frameMotions) > maxFrames {
 			mr.frameMotions = mr.frameMotions[1:]
 		}
 	}
@@ -225,10 +219,10 @@ func (mr *MotionRecorder) Append(fr *frameRecord) {
 	mr.prevFrame = fr
 }
 
-func (mr *MotionRecorder) DetectMotion() bool {
+func (mr *motionRecorder) DetectMotion() bool {
 
 	if len(mr.snapshotTimestamps) > 0 {
-		if time.Since(mr.snapshotTimestamps[len(mr.snapshotTimestamps)-1]) < MinimalTimestampDiff {
+		if time.Since(mr.snapshotTimestamps[len(mr.snapshotTimestamps)-1]) < minimalTimestampDiff {
 			return false
 		}
 	}
@@ -236,7 +230,7 @@ func (mr *MotionRecorder) DetectMotion() bool {
 	activity := mr.analyze()
 	if activity >= mr.Threshold() {
 		mr.snapshotTimestamps = append(mr.snapshotTimestamps, time.Now())
-		if len(mr.snapshotTimestamps) > MaxTimestamps {
+		if len(mr.snapshotTimestamps) > maxTimestamps {
 			mr.snapshotTimestamps = mr.snapshotTimestamps[1:]
 		}
 		return true

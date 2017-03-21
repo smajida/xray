@@ -19,7 +19,7 @@ func rectFromCenter(pt image.Point, size int) image.Rectangle {
 	return image.Rect(pt.X-size, pt.Y-size, pt.X+size, pt.Y+size)
 }
 
-func getJson(rects []image.Rectangle) string {
+func getJSON(rects []image.Rectangle) string {
 
 	frame++
 	timestamp++
@@ -38,14 +38,14 @@ func getJson(rects []image.Rectangle) string {
 
 func TestMotion(t *testing.T) {
 
-	mr := MotionRecorder{}
+	mr := motionRecorder{}
 
-	for size := 25; size < 20000; size += 1 {
+	for size := 25; size < 20000; size++ {
 
 		time.Sleep(time.Millisecond * 20)
 
 		rect := rectFromCenter(image.Point{X: frameWidth/2 + size, Y: frameHeight / 2}, 25)
-		jsontext := getJson([]image.Rectangle{rect})
+		jsontext := getJSON([]image.Rectangle{rect})
 
 		var fr frameRecord
 		if err := json.Unmarshal([]byte(jsontext), &fr); err != nil {
@@ -56,5 +56,62 @@ func TestMotion(t *testing.T) {
 		if mr.DetectMotion() {
 			fmt.Println("SNAPSHOT at threshold", mr.Threshold())
 		}
+	}
+}
+
+func TestXorRects(t *testing.T) {
+
+	expected, got := 0.0, 0.0
+	got = sumAreas(XorRects(image.Rect(100, 100, 200, 200), image.Rect(100, 100, 200, 200)))
+	if got != expected {
+		t.Errorf("TestXorRects(): \nexpected %f\ngot      %f", expected, got)
+	}
+
+	expected = 2.0 * 100 * 100
+	got = sumAreas(XorRects(image.Rect(100, 100, 200, 200), image.Rect(300, 300, 400, 400)))
+	if got != expected {
+		t.Errorf("TestXorRects(): \nexpected %f\ngot      %f", expected, got)
+	}
+
+	expected = 2.0 * 100 * 1
+	got = sumAreas(XorRects(image.Rect(100, 100, 200, 200), image.Rect(101, 100, 201, 200)))
+	if got != expected {
+		t.Errorf("TestXorRects(): \nexpected %f\ngot      %f", expected, got)
+	}
+
+	expected = 2.0 * 100 * 50
+	got = sumAreas(XorRects(image.Rect(100, 100, 200, 200), image.Rect(150, 100, 250, 200)))
+	if got != expected {
+		t.Errorf("TestXorRects(): \nexpected %f\ngot      %f", expected, got)
+	}
+
+	expected = 2.0 * 100 * 50 + 2.0 * 50 * 1
+	got = sumAreas(XorRects(image.Rect(100, 100, 200, 200), image.Rect(150, 101, 250, 201)))
+	if got != expected {
+		t.Errorf("TestXorRects(): \nexpected %f\ngot      %f", expected, got)
+	}
+
+	expected = 2.0 * 102 * 1 + 2.0 * 99 * 1
+	got = sumAreas(XorRects(image.Rect(100, 100, 200, 200), image.Rect(99, 99, 201, 201)))
+	if got != expected {
+		t.Errorf("TestXorRects(): \nexpected %f\ngot      %f", expected, got)
+	}
+
+	expected = 2.0 * 104 * 2 + 2.0 * 98 * 2
+	got = sumAreas(XorRects(image.Rect(100, 100, 200, 200), image.Rect(98, 98, 202, 202)))
+	if got != expected {
+		t.Errorf("TestXorRects(): \nexpected %f\ngot      %f", expected, got)
+	}
+
+	expected = (2.0 * 100 * 2 + 2.0 * 97 * 2) / 2
+	got = sumAreas(XorRects(image.Rect(100, 100, 200, 200), image.Rect(101, 101, 199, 199)))
+	if got != expected {
+		t.Errorf("TestXorRects(): \nexpected %f\ngot      %f", expected, got)
+	}
+
+	expected = 100 * 100 + 13
+	got = sumAreas(XorRects(image.Rect(150, 150, 250, 250), image.Rect(128, 128, 273, 273)))
+	if got != expected {
+		t.Errorf("TestXorRects(): \nexpected %f\ngot      %f", expected, got)
 	}
 }
