@@ -201,7 +201,7 @@ func (mr *motionRecorder) Threshold() float64 {
 		mr.snapshotTimestamps = mr.snapshotTimestamps[itime:]
 	}
 
-	return thresholdBase + thresholdBoost *float64(len(mr.snapshotTimestamps))/ maxTimestamps
+	return thresholdBase + thresholdBoost*float64(len(mr.snapshotTimestamps))/maxTimestamps
 }
 
 func (mr *motionRecorder) Append(fr *frameRecord) {

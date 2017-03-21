@@ -108,7 +108,6 @@ func (fr *frameRecord) GetFaceRectangles() ([]image.Rectangle, error) {
 // additional methods for calculating threshold factors.
 type Rectangle image.Rectangle
 
-
 const zoomOutBorderSize = 50
 const nozoomBorderSize = 75
 
@@ -123,7 +122,7 @@ func calculateOptimalZoomFactor(rects []image.Rectangle, boundingBox image.Recta
 	}
 
 	if final.Empty() {
-		return 0
+		return -1 // Zoom out when nothing detected
 	}
 
 	nozoomBox := boundingBox.Inset(zoomOutBorderSize)

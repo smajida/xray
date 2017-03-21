@@ -85,31 +85,31 @@ func TestXorRects(t *testing.T) {
 		t.Errorf("TestXorRects(): \nexpected %f\ngot      %f", expected, got)
 	}
 
-	expected = 2.0 * 100 * 50 + 2.0 * 50 * 1
+	expected = 2.0*100*50 + 2.0*50*1
 	got = sumAreas(XorRects(image.Rect(100, 100, 200, 200), image.Rect(150, 101, 250, 201)))
 	if got != expected {
 		t.Errorf("TestXorRects(): \nexpected %f\ngot      %f", expected, got)
 	}
 
-	expected = 2.0 * 102 * 1 + 2.0 * 99 * 1
+	expected = 2.0*102*1 + 2.0*99*1
 	got = sumAreas(XorRects(image.Rect(100, 100, 200, 200), image.Rect(99, 99, 201, 201)))
 	if got != expected {
 		t.Errorf("TestXorRects(): \nexpected %f\ngot      %f", expected, got)
 	}
 
-	expected = 2.0 * 104 * 2 + 2.0 * 98 * 2
+	expected = 2.0*104*2 + 2.0*98*2
 	got = sumAreas(XorRects(image.Rect(100, 100, 200, 200), image.Rect(98, 98, 202, 202)))
 	if got != expected {
 		t.Errorf("TestXorRects(): \nexpected %f\ngot      %f", expected, got)
 	}
 
-	expected = (2.0 * 100 * 2 + 2.0 * 97 * 2) / 2
+	expected = (2.0*100*2 + 2.0*97*2) / 2
 	got = sumAreas(XorRects(image.Rect(100, 100, 200, 200), image.Rect(101, 101, 199, 199)))
 	if got != expected {
 		t.Errorf("TestXorRects(): \nexpected %f\ngot      %f", expected, got)
 	}
 
-	expected = 100 * 100 + 13
+	expected = 100*100 + 13
 	got = sumAreas(XorRects(image.Rect(150, 150, 250, 250), image.Rect(128, 128, 273, 273)))
 	if got != expected {
 		t.Errorf("TestXorRects(): \nexpected %f\ngot      %f", expected, got)

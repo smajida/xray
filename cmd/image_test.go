@@ -17,7 +17,7 @@ func TestZoomInSingle(t *testing.T) {
 		if zoom == 0 {
 			break
 		}
-		face = face.Inset(-10*zoom)	// grow box
+		face = face.Inset(-10 * zoom) // grow box
 	}
 }
 
@@ -33,7 +33,7 @@ func TestZoomInTwoFaces(t *testing.T) {
 		if zoom == 0 {
 			break
 		}
-		face1 = face1.Add(image.Point{X: 5*zoom}) // shift box
+		face1 = face1.Add(image.Point{X: 5 * zoom}) // shift box
 	}
 }
 
@@ -48,6 +48,6 @@ func TestZoomOutSingle(t *testing.T) {
 		if zoom == 0 {
 			break
 		}
-		face = face.Inset(-10*zoom) // shrink box
+		face = face.Inset(-10 * zoom) // shrink box
 	}
 }
