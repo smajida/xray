@@ -97,9 +97,9 @@ func (v *xrayHandlers) detectObjects(data []byte) {
 
 	// Send the data to client.
 	v.clntRespCh <- XrayResult{
-		FrameID:   frameID,
-		Zoom:      calculateOptimalZoomFactor(faces, imgRect),
-		Presigned: pp,
+		FrameID: frameID,
+		Zoom:    calculateOptimalZoomFactor(faces, imgRect),
+		URL:     pp.String(),
 	}
 }
 

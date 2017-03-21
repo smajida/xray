@@ -30,5 +30,5 @@ type XrayResult struct {
 
 	// Presigned information if any for client
 	// to start upload the frames..
-	Presigned *presignedPOST
+	URL string
 }

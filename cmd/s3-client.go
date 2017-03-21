@@ -21,6 +21,7 @@ package cmd
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
 	"time"
@@ -93,47 +94,18 @@ func (c minioConfig) Region() string {
 	return region
 }
 
-// PresignedPOST holds the remote URL and the policy data
-// to successfully complete client upload request.
-type presignedPOST struct {
-	// Remote storage URL.
-	URL string `json:",omitempty"`
-
-	// Form policy data used..
-	FormData map[string]string `json:",omitempty"`
-}
-
-// Generates new presigned POST policy data and the URL.
-func (v *xrayHandlers) newPresignedURL(objPrefix string) (*presignedPOST, error) {
-	// Set bucket and region obtained from configured minioConfig values..
-	policy := minio.NewPostPolicy()
-	policy.SetBucket(globalMinioClntConfig.BucketName())
-	policy.SetRegion(globalMinioClntConfig.Region())
-
-	// Set object key prefix where the images will be uploaded.
-	policy.SetKeyStartsWith(objPrefix)
-
-	// Expires in 10 days. (TODO make this configurable).
-	policy.SetExpires(time.Now().UTC().AddDate(0, 0, 10))
-
-	// Returns form data for POST form request.
-	url, formData, err := v.minioClient.PresignedPostPolicy(policy)
-	if err != nil {
-		return nil, err
-	}
-
-	// Success..
-	return &presignedPOST{
-		URL:      url.String(),
-		FormData: formData,
-	}, nil
+// Generates new presigned PUT URL.
+func (v *xrayHandlers) newPresignedURL(objPrefix string) (*url.URL, error) {
+	return v.minioClient.PresignedPutObject(globalMinioClntConfig.BucketName(),
+		objPrefix+"/alice.jpg", time.Duration(48*time.Hour))
 }
 
 // Create a minio client to play.minio.io and make a bucket.
 func newMinioClient() (*minio.Client, error) {
 	// Initialize minio client instance.
-	minioClient, err := minio.New(globalMinioClntConfig.Endpoint(), globalMinioClntConfig.AccessKey(),
-		globalMinioClntConfig.SecretKey(), globalMinioClntConfig.SSL())
+	minioClient, err := minio.NewWithRegion(globalMinioClntConfig.Endpoint(), globalMinioClntConfig.AccessKey(),
+		globalMinioClntConfig.SecretKey(), globalMinioClntConfig.SSL(),
+		globalMinioClntConfig.Region())
 	if err != nil {
 		return nil, err
 	}

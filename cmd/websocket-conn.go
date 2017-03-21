@@ -20,6 +20,7 @@
 package cmd
 
 import (
+	"bytes"
 	"encoding/json"
 	"log"
 
@@ -32,16 +33,19 @@ type wConn struct {
 
 // Write client response data in json form.
 func (w *wConn) WriteMessage(mtype int, dataCh <-chan interface{}) {
+	var buffer bytes.Buffer
 	fo := <-dataCh
-	fobytes, err := json.Marshal(&fo)
-	if err != nil {
+
+	enc := json.NewEncoder(&buffer)
+	enc.SetEscapeHTML(false) // Disable HTML characters from being encoded.
+	if err := enc.Encode(&fo); err != nil {
 		errorIf(err, "Unable to marshal %#v into json.", fo)
 		return
 	}
 	if globalDebug {
-		log.Println(string(fobytes))
+		log.Println(string(buffer.Bytes()))
 	}
-	if err = w.Conn.WriteMessage(mtype, fobytes); err != nil {
+	if err := w.Conn.WriteMessage(mtype, buffer.Bytes()); err != nil {
 		errorIf(err, "Unable to write to client.")
 	}
 }
