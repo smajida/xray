@@ -54,7 +54,7 @@ func TestMotion(t *testing.T) {
 
 		mr.Append(&fr)
 		if mr.DetectMotion() {
-			fmt.Println("SNAPSHOT at threshold", mr.Threshold())
+			fmt.Println("SNAPSHOT at threshold", mr.threshold())
 		}
 	}
 }

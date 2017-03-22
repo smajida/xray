@@ -22,6 +22,7 @@ package cmd
 import (
 	"image"
 	"math"
+	"sync"
 	"time"
 )
 
@@ -90,6 +91,7 @@ func XorRects(r, s image.Rectangle) []image.Rectangle {
 }
 
 type motionRecorder struct {
+	mutex              sync.Mutex
 	prevFrame          *frameRecord
 	frameMotions       []float64
 	snapshotTimestamps []time.Time
@@ -179,16 +181,16 @@ func (mr *motionRecorder) analyze() float64 {
 	return result
 }
 
-const maxFrames = 1000 // Maximum number of frames to keep track off
+const maxFrames = 25 * 30 // Maximum number of frames to keep track off
 
 const thresholdBase = 0.05  // Base value for threshold
 const thresholdBoost = 0.10 // Maximum boost for threshold when timestamps are taken
 
 const maxTimestamps = 10                     // Maximum number of timestamps to keep
 const minimalTimestampDiff = time.Second * 5 // Minimal difference between timestamps
-const maxTimestampsAge = time.Second * 30    // Age to remove recorded timestamp from array
+const maxTimestampsAge = time.Second * 60    // Age to remove recorded timestamp from array
 
-func (mr *motionRecorder) Threshold() float64 {
+func (mr *motionRecorder) threshold() float64 {
 
 	// Detect older time stamps
 	itime := len(mr.snapshotTimestamps) - 1
@@ -206,6 +208,9 @@ func (mr *motionRecorder) Threshold() float64 {
 
 func (mr *motionRecorder) Append(fr *frameRecord) {
 
+	mr.mutex.Lock()
+	defer mr.mutex.Unlock()
+
 	if mr.prevFrame != nil {
 
 		diff := analyseBetweenFrames(mr.prevFrame, fr)
@@ -221,6 +226,9 @@ func (mr *motionRecorder) Append(fr *frameRecord) {
 
 func (mr *motionRecorder) DetectMotion() bool {
 
+	mr.mutex.Lock()
+	defer mr.mutex.Unlock()
+
 	if len(mr.snapshotTimestamps) > 0 {
 		if time.Since(mr.snapshotTimestamps[len(mr.snapshotTimestamps)-1]) < minimalTimestampDiff {
 			return false
@@ -228,7 +236,7 @@ func (mr *motionRecorder) DetectMotion() bool {
 	}
 
 	activity := mr.analyze()
-	if activity >= mr.Threshold() {
+	if activity >= mr.threshold() {
 		mr.snapshotTimestamps = append(mr.snapshotTimestamps, time.Now())
 		if len(mr.snapshotTimestamps) > maxTimestamps {
 			mr.snapshotTimestamps = mr.snapshotTimestamps[1:]

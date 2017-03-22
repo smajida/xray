@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"sync"
 
 	router "github.com/gorilla/mux"
@@ -48,6 +49,16 @@ type xrayHandlers struct {
 	// Used for upgrading the incoming HTTP
 	// wconnection into a websocket wconnection.
 	upgrader websocket.Upgrader
+}
+
+var recorderMap map[string]*motionRecorder
+
+func getRecordForClient(clientID string) *motionRecorder {
+	if _, ok := recorderMap[clientID]; !ok {
+		recorderMap[clientID] = &motionRecorder{}
+	}
+	mr, _ := recorderMap[clientID]
+	return mr
 }
 
 // Detects face objects on incoming data.
@@ -85,14 +96,21 @@ func (v *xrayHandlers) detectObjects(data []byte) {
 		return
 	}
 
-	// Generate POST presigned URL.
-	pp, err := v.newPresignedURL(getObjectPrefix())
-	if err != nil {
-		errorIf(err, "Unable to generate presigned post policy")
-		v.clntRespCh <- XrayResult{
-			Zoom: -1,
+	clientID := "1"
+	mr := getRecordForClient(clientID)
+	mr.Append(&fr)
+
+	pp := &url.URL{}
+	if mr.DetectMotion() {
+		// Generate POST presigned URL.
+		pp, err = v.newPresignedURL(getObjectPrefix())
+		if err != nil {
+			errorIf(err, "Unable to generate presigned post policy")
+			v.clntRespCh <- XrayResult{
+				Zoom: -1,
+			}
+			return
 		}
-		return
 	}
 
 	// Send the data to client.
