@@ -40,9 +40,9 @@ func TestMotion(t *testing.T) {
 
 	mr := motionRecorder{}
 
-	for size := 25; size < 20000; size++ {
+	for size := 25; size < 20000/25; size++ {
 
-		time.Sleep(time.Millisecond * 20)
+		time.Sleep(time.Millisecond * 500)
 
 		rect := rectFromCenter(image.Point{X: frameWidth/2 + size, Y: frameHeight / 2}, 25)
 		jsontext := getJSON([]image.Rectangle{rect})

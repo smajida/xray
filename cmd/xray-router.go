@@ -51,7 +51,7 @@ type xrayHandlers struct {
 	upgrader websocket.Upgrader
 }
 
-var recorderMap map[string]*motionRecorder
+var recorderMap = make(map[string]*motionRecorder)
 
 func getRecordForClient(clientID string) *motionRecorder {
 	if _, ok := recorderMap[clientID]; !ok {

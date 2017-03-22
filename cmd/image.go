@@ -110,6 +110,7 @@ type Rectangle image.Rectangle
 
 const zoomOutBorderSize = 50
 const nozoomBorderSize = 75
+const zoomBoost = 5
 
 // Algorithm used here is pretty simple union of face rectangles is fitted
 // into respectively smaller boxes, smallest box will return back the hightest
@@ -139,15 +140,15 @@ func calculateOptimalZoomFactor(rects []image.Rectangle, boundingBox image.Recta
 	zoomInBox3 := zoomInBox2.Inset(inset)
 
 	if final.In(zoomInBox3) {
-		return 3
+		return 3*zoomBoost
 	} else if final.In(zoomInBox2) {
-		return 2
+		return 2*zoomBoost
 	} else if final.In(zoomInBox1) {
-		return 1
+		return 1*zoomBoost
 	} else if final.In(nozoomBox) {
 		return 0
 	} else {
-		return -1
+		return -1*zoomBoost
 	}
 }
 

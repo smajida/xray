@@ -93,19 +93,20 @@ func XorRects(r, s image.Rectangle) []image.Rectangle {
 type motionRecorder struct {
 	mutex              sync.Mutex
 	prevFrame          *frameRecord
+	lastFrameHasFaces  bool
 	frameMotions       []float64
 	snapshotTimestamps []time.Time
 }
 
-func findClosestRectangle(prevFace image.Rectangle, nextFaces []image.Rectangle) int {
+func findClosestRectangle(face image.Rectangle, faces []image.Rectangle) int {
 
-	prevCenterX := prevFace.Min.X + prevFace.Dx()
-	prevCenterY := prevFace.Min.Y + prevFace.Dy()
+	prevCenterX := face.Min.X + face.Dx()
+	prevCenterY := face.Min.Y + face.Dy()
 
 	n, distance := -1, math.MaxInt64
-	for j := 0; j < len(nextFaces); j++ {
-		nextCenterX := nextFaces[j].Min.X + nextFaces[j].Dx()
-		nextCenterY := nextFaces[j].Min.Y + nextFaces[j].Dy()
+	for j := 0; j < len(faces); j++ {
+		nextCenterX := faces[j].Min.X + faces[j].Dx()
+		nextCenterY := faces[j].Min.Y + faces[j].Dy()
 
 		di := (prevCenterX-nextCenterX)*(prevCenterX-nextCenterX) + (prevCenterY-nextCenterY)*(prevCenterY-nextCenterY)
 		if di < distance {
@@ -140,29 +141,23 @@ func analyseBetweenFrames(prev, next *frameRecord) float64 {
 	result := float64(0.0)
 
 	i := 0
-	// Handle faces present in both frame
+	// Handle faces present in both frames
 	for ; i < l; i++ {
 
-		n := findClosestRectangle(prevFaces[i], nextFaces)
+		p := findClosestRectangle(nextFaces[i], prevFaces)
 
-		xorRects := XorRects(prevFaces[i], nextFaces[n])
-
-		result += sumAreas(xorRects)
-	}
-	// Handle faces only available in previous frame
-	for p := i; p < len(prevFaces); p++ {
-
-		xorRects := XorRects(prevFaces[p], image.Rectangle{})
+		xorRects := XorRects(prevFaces[p], nextFaces[i])
 
 		result += sumAreas(xorRects)
 	}
-	// Handle faces only available in next frame
+	// Handle new faces only available in next frame
 	for n := i; n < len(nextFaces); n++ {
 
 		xorRects := XorRects(image.Rectangle{}, nextFaces[n])
 
 		result += sumAreas(xorRects)
 	}
+	// Do not account for effect of excess faces in previous frame (kind of a negative change)
 
 	frame, _, _ := prev.GetFullFrameRect()
 
@@ -178,13 +173,15 @@ func (mr *motionRecorder) analyze() float64 {
 		result += motion
 	}
 
+	// fmt.Println("motionRecorder.analyze", result)
+
 	return result
 }
 
-const maxFrames = 25 * 30 // Maximum number of frames to keep track off
+const maxFrames = 1 * 30 // 1Hz * 30 seconds: Maximum number of frames to keep track off
 
-const thresholdBase = 0.05  // Base value for threshold
-const thresholdBoost = 0.10 // Maximum boost for threshold when timestamps are taken
+const thresholdBase = 0.002  // Base value for threshold
+const thresholdBoost = 0.004 // Maximum boost for threshold when timestamps are taken
 
 const maxTimestamps = 10                     // Maximum number of timestamps to keep
 const minimalTimestampDiff = time.Second * 5 // Minimal difference between timestamps
@@ -222,6 +219,7 @@ func (mr *motionRecorder) Append(fr *frameRecord) {
 	}
 
 	mr.prevFrame = fr
+	mr.lastFrameHasFaces = len(fr.Faces) > 0
 }
 
 func (mr *motionRecorder) DetectMotion() bool {
@@ -241,7 +239,7 @@ func (mr *motionRecorder) DetectMotion() bool {
 		if len(mr.snapshotTimestamps) > maxTimestamps {
 			mr.snapshotTimestamps = mr.snapshotTimestamps[1:]
 		}
-		return true
+		return mr.lastFrameHasFaces
 	}
 
 	return false
