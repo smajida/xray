@@ -28,9 +28,9 @@ import (
 	minio "github.com/minio/minio-go"
 )
 
-func getObjectPrefix() string {
+func genObjectName() string {
 	uid := time.Now().UTC()
-	return uid.Format("Mon/02-Jan-2006-MST/15hrs-04mins-05secs")
+	return uid.Format("02-Jan-2006-MST/15hrs-04mins-05secs.jpg")
 }
 
 type minioConfig struct{}
@@ -94,9 +94,9 @@ func (c minioConfig) Region() string {
 }
 
 // Generates new presigned PUT URL.
-func (v *xrayHandlers) newPresignedURL(objPrefix string) (*url.URL, error) {
+func (v *xrayHandlers) newPresignedURL(objName string) (*url.URL, error) {
 	return v.minioClient.PresignedPutObject(globalMinioClntConfig.BucketName(),
-		objPrefix+"/alice.jpg", time.Duration(48*time.Hour))
+		objName, time.Duration(48*time.Hour))
 }
 
 // Create a minio client to play.minio.io and make a bucket.

@@ -22,6 +22,7 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
+	"image"
 	"net/http"
 	"net/url"
 	"sync"
@@ -87,23 +88,51 @@ func (v *xrayHandlers) detectObjects(data []byte) {
 		return
 	}
 
-	faces, err := fr.GetFaceRectangles()
-	if err != nil {
-		errorIf(err, "Unable to get face rectangles")
-		v.clntRespCh <- XrayResult{
-			Zoom: -1,
+	var motionDetected bool
+	var optimalZoomFactor = -1
+	if fr.Faces != nil {
+		var faces []image.Rectangle
+		faces, err = fr.GetFaceRectangles()
+		if err != nil {
+			errorIf(err, "Unable to get face rectangles")
+			v.clntRespCh <- XrayResult{
+				Zoom: -1,
+			}
+			return
 		}
-		return
+
+		// Get recorded frames.
+		mr := getRecordForClient(fr.ClientID)
+		mr.Append(&fr)
+
+		// Check for motion detection.
+		motionDetected = mr.DetectMotion()
+
+		// Calculate optimal zoom factor for faces.
+		optimalZoomFactor = calculateOptimalZoomFactor(faces, imgRect)
+
+	} else if fr.Barcodes != nil {
+		var barcodes []image.Rectangle
+		barcodes, err = fr.GetBarcodeRectangles()
+		if err != nil {
+			errorIf(err, "Unable to get barcode rectangles")
+			v.clntRespCh <- XrayResult{
+				Zoom: -1,
+			}
+			return
+		}
+
+		// Motion is detected relevance is on for barcodes.
+		motionDetected = len(barcodes) > 0
+
+		// Calculate optimal zoom factor for barcodes.
+		optimalZoomFactor = calculateOptimalZoomFactor(barcodes, imgRect)
 	}
 
-	clientID := "1"
-	mr := getRecordForClient(clientID)
-	mr.Append(&fr)
-
 	pp := &url.URL{}
-	if mr.DetectMotion() {
+	if motionDetected {
 		// Generate POST presigned URL.
-		pp, err = v.newPresignedURL(getObjectPrefix())
+		pp, err = v.newPresignedURL(genObjectName())
 		if err != nil {
 			errorIf(err, "Unable to generate presigned post policy")
 			v.clntRespCh <- XrayResult{
@@ -116,7 +145,7 @@ func (v *xrayHandlers) detectObjects(data []byte) {
 	// Send the data to client.
 	v.clntRespCh <- XrayResult{
 		FrameID: frameID,
-		Zoom:    calculateOptimalZoomFactor(faces, imgRect),
+		Zoom:    optimalZoomFactor,
 		URL:     pp.String(),
 	}
 }

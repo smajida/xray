@@ -43,8 +43,14 @@ type faceStruct struct {
 	LeftEyeOpen  string      `json:"leftEyeOpen"`
 	RightEyeOpen string      `json:"rightEyeOpen"`
 	Smiling      string      `json:"similing"`
-	FacePt1      pointStruct `json:"facePt1"`
-	FacePt2      pointStruct `json:"facePt2"`
+	FacePT1      pointStruct `json:"facePt1"`
+	FacePT2      pointStruct `json:"facePt2"`
+}
+
+type barcodeStruct struct {
+	ID         string      `json:"id"`
+	BarcodePT1 pointStruct `json:"barcodePt1"`
+	BarcodePT2 pointStruct `json:"barcodePt2"`
 }
 
 type pointStruct struct {
@@ -53,8 +59,10 @@ type pointStruct struct {
 }
 
 type frameRecord struct {
-	Frame frameStruct  `json:"frame"`
-	Faces []faceStruct `json:"faces"`
+	ClientID string          `json:"client_uuid"`
+	Frame    frameStruct     `json:"frame"`
+	Faces    []faceStruct    `json:"faces"`
+	Barcodes []barcodeStruct `json:"barcodes"`
 }
 
 // Extracts full frame rectangle from the incoming frame record.
@@ -63,6 +71,7 @@ func (fr *frameRecord) GetFullFrameRect() (image.Rectangle, int, error) {
 	if err != nil {
 		return image.Rectangle{}, 0, err
 	}
+
 	height, err := strconv.Atoi(fr.Frame.Width)
 	if err != nil {
 		return image.Rectangle{}, 0, err
@@ -76,23 +85,51 @@ func (fr *frameRecord) GetFullFrameRect() (image.Rectangle, int, error) {
 	return image.Rectangle{image.Point{}, image.Point{X: width, Y: height}}, frameID, nil
 }
 
+// Extracts all the barcode rectangles from the incoming frame record.
+func (fr *frameRecord) GetBarcodeRectangles() ([]image.Rectangle, error) {
+	var barcodes []image.Rectangle
+	for _, barcode := range fr.Barcodes {
+		x1, err := strconv.ParseFloat(barcode.BarcodePT1.X, 64)
+		if err != nil {
+			return []image.Rectangle{}, err
+		}
+		y1, err := strconv.ParseFloat(barcode.BarcodePT1.Y, 64)
+		if err != nil {
+			return []image.Rectangle{}, err
+		}
+		x2, err := strconv.ParseFloat(barcode.BarcodePT2.X, 64)
+		if err != nil {
+			return []image.Rectangle{}, err
+		}
+		y2, err := strconv.ParseFloat(barcode.BarcodePT2.Y, 64)
+		if err != nil {
+			return []image.Rectangle{}, err
+		}
+		barcodes = append(barcodes, image.Rectangle{
+			image.Point{X: int(x1), Y: int(y1)}, image.Point{X: int(x2), Y: int(y2)},
+		})
+	}
+
+	return barcodes, nil
+}
+
 // Extracts all the face rectangles from the incoming frame record.
 func (fr *frameRecord) GetFaceRectangles() ([]image.Rectangle, error) {
 	var faces []image.Rectangle
 	for _, face := range fr.Faces {
-		x1, err := strconv.ParseFloat(face.FacePt1.X, 64)
+		x1, err := strconv.ParseFloat(face.FacePT1.X, 64)
 		if err != nil {
 			return []image.Rectangle{}, err
 		}
-		y1, err := strconv.ParseFloat(face.FacePt1.Y, 64)
+		y1, err := strconv.ParseFloat(face.FacePT1.Y, 64)
 		if err != nil {
 			return []image.Rectangle{}, err
 		}
-		x2, err := strconv.ParseFloat(face.FacePt2.X, 64)
+		x2, err := strconv.ParseFloat(face.FacePT2.X, 64)
 		if err != nil {
 			return []image.Rectangle{}, err
 		}
-		y2, err := strconv.ParseFloat(face.FacePt2.Y, 64)
+		y2, err := strconv.ParseFloat(face.FacePT2.Y, 64)
 		if err != nil {
 			return []image.Rectangle{}, err
 		}
@@ -116,7 +153,6 @@ const zoomBoost = 5
 // into respectively smaller boxes, smallest box will return back the hightest
 // zoom factor
 func calculateOptimalZoomFactor(rects []image.Rectangle, boundingBox image.Rectangle) int {
-
 	var final image.Rectangle
 	for _, rect := range rects {
 		final = final.Union(rect)
@@ -140,15 +176,15 @@ func calculateOptimalZoomFactor(rects []image.Rectangle, boundingBox image.Recta
 	zoomInBox3 := zoomInBox2.Inset(inset)
 
 	if final.In(zoomInBox3) {
-		return 3*zoomBoost
+		return 3 * zoomBoost
 	} else if final.In(zoomInBox2) {
-		return 2*zoomBoost
+		return 2 * zoomBoost
 	} else if final.In(zoomInBox1) {
-		return 1*zoomBoost
+		return 1 * zoomBoost
 	} else if final.In(nozoomBox) {
 		return 0
 	} else {
-		return -1*zoomBoost
+		return -1 * zoomBoost
 	}
 }
 
