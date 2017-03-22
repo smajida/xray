@@ -20,7 +20,6 @@
 package cmd
 
 import (
-	"fmt"
 	"net/url"
 	"os"
 	"strconv"
@@ -30,8 +29,8 @@ import (
 )
 
 func getObjectPrefix() string {
-	uid := fmt.Sprintf("%x", time.Now().UTC().UnixNano())
-	return fmt.Sprintf("%s/%s/%s", uid[:2], uid[2:4], uid[4:])
+	uid := time.Now().UTC()
+	return uid.Format("Mon/02-Jan-2006-MST/15hrs-04mins-05secs")
 }
 
 type minioConfig struct{}
